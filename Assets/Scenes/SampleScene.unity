@@ -226,26 +226,14 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 726848224}
-  - component: {fileID: 726848223}
+  - component: {fileID: 726848225}
   m_Layer: 0
-  m_Name: PythonTest
+  m_Name: Radio
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &726848223
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 726848222}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1cecb24e4fcf0649adeb9e47057b983, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!4 &726848224
 Transform:
   m_ObjectHideFlags: 0
@@ -261,6 +249,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &726848225
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 726848222}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f09fe71b168a4fe7a51d3165fdbd9533, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &963194225
 GameObject:
   m_ObjectHideFlags: 0
