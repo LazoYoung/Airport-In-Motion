@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Dreamteck.Splines;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -8,10 +9,13 @@ using UnityEngine.UIElements;
 namespace Editor
 {
     [CustomEditor(typeof(Aircraft))]
-    public class JoinTaxiwayButton : UnityEditor.Editor
+    public class AircraftEditor : UnityEditor.Editor
     {
+
         public override VisualElement CreateInspectorGUI()
         {
+            serializedObject.Update();
+            
             var root = GetRootElement();
             var taxiways = FindTaxiways();
             var box = new Box()
@@ -45,18 +49,13 @@ namespace Editor
             
             button.clicked += () =>
             {
-                if (!Application.isPlaying)
-                {
-                    Debug.LogWarning("Game is not running!");
-                    return;
-                }
-                
                 var taxiway = taxiways[dropdown.index];
                 var direction = Spline.Direction.Forward;
                 aircraft!.JoinTaxiway(taxiway, direction);
             };
             actions.Add(dropdown);
             actions.Add(button);
+            actions.SetEnabled(EditorApplication.isPlaying);
             box.Add(label);
             box.Add(actions);
             root.Add(box);
