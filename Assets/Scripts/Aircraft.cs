@@ -5,7 +5,6 @@ using UnityEngine;
 [RequireComponent(typeof(SplineFollower))]
 public class Aircraft : MonoBehaviour
 {
-    // todo apply changes to SplineFollower
     [SerializeField] private float taxiSpeed = 10f;
     [SerializeField] private float turnRadius = 30f;
     [HideInInspector] [SerializeField] private SplineFollower follower;
@@ -17,6 +16,11 @@ public class Aircraft : MonoBehaviour
         tag = "Aircraft";
         follower = GetComponent<SplineFollower>();
         follower.follow = false;
+    }
+
+    private void Update()
+    {
+        follower.followSpeed = taxiSpeed;
     }
 
     public void JoinTaxiway(SplineComputer spline, Spline.Direction direction)
@@ -50,10 +54,8 @@ public class Aircraft : MonoBehaviour
         follower.direction = Spline.Direction.Forward;
         follower.wrapMode = SplineFollower.Wrap.Default;
         follower.followMode = SplineFollower.FollowMode.Uniform;
-        follower.followSpeed = taxiSpeed;
         follower.follow = true;
         follower.onEndReached += OnTaxiwayJoin;
-        Debug.Log("join twy");
     }
 
     public void StartTaxi(SplineComputer spline, Spline.Direction direction)
@@ -74,9 +76,7 @@ public class Aircraft : MonoBehaviour
         follower.direction = taxiDirection;
         follower.wrapMode = SplineFollower.Wrap.Default;
         follower.followMode = SplineFollower.FollowMode.Uniform;
-        follower.followSpeed = taxiSpeed;
         follower.follow = true;
-        Debug.Log($"taxi start at {sample.percent}");
     }
 
     private void OnTaxiwayJoin(double d)
