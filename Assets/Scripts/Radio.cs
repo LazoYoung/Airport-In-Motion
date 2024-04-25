@@ -32,14 +32,12 @@ public class Radio : MonoBehaviour
     private void StartRecording()
     {
         StartCoroutine(RecordCoroutine());
-        Debug.Log("Recording start.");
     }
     
     private void StopRecording()
     {
         _recording = false;
         _model.Flush();
-        Debug.Log("Recording stop.");
     }
     
     private AudioDevice GetInputDevice()
