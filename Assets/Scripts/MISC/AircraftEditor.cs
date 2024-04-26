@@ -1,15 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Dreamteck.Splines;
+using TFC;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Editor
+namespace MISC
 {
     [CustomEditor(typeof(Aircraft))]
-    public class AircraftEditor : UnityEditor.Editor
+    public class AircraftEditor : Editor
     {
 
         public override VisualElement CreateInspectorGUI()
