@@ -4,7 +4,7 @@ using Python.Runtime;
 using UnityEngine;
 using UnityEngine.Assertions;
 
-namespace NLP
+namespace ASR
 {
     public class Transmitter : MonoBehaviour
     {

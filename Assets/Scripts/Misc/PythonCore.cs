@@ -2,7 +2,7 @@
 using Python.Runtime;
 using UnityEngine;
 
-namespace MISC
+namespace Misc
 {
     public class PythonCore : MonoBehaviour
     {

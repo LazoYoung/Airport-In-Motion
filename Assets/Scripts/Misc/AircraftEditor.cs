@@ -1,12 +1,12 @@
 ﻿using System.Collections.Generic;
 using Dreamteck.Splines;
-using TFC;
+using Traffic;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace MISC
+namespace Misc
 {
     [CustomEditor(typeof(Aircraft))]
     public class AircraftEditor : Editor
@@ -39,12 +39,66 @@ namespace MISC
                     paddingBottom = 20f
                 }
             };
-            var actions = new VisualElement()
+            var joinTwy = GetJoinTaxiwayAction(taxiways);
+            var taxi = GetTaxiAction();
+            box.Add(label);
+            box.Add(joinTwy);
+            box.Add(taxi);
+            root.Add(box);
+            return root;
+        }
+
+        private VisualElement GetTaxiAction()
+        {
+            var action = new VisualElement()
             {
                 style = { flexDirection = FlexDirection.Row }
             };
+            var textField = new TextField()
+            {
+                style = { flexGrow = 1f, marginRight = 20f }
+            };
+            var button = new Button()
+            {
+                text = "Taxi",
+                style = { width = 100f }
+            };
+            var aircraft = target as Aircraft;
+            
+            button.clicked += () =>
+            {
+                var taxiways = TaxiInstruction.GetTaxiways(textField.text);
+
+                if (taxiways.Length > 0)
+                {
+                    aircraft!.Taxi(new TaxiInstruction(taxiways));
+                }
+                else
+                {
+                    Debug.LogWarning("Invalid taxiway!");
+                }
+            };
+            action.Add(textField);
+            action.Add(button);
+            action.SetEnabled(EditorApplication.isPlaying);
+            return action;
+        }
+
+        private VisualElement GetJoinTaxiwayAction(SplineComputer[] taxiways)
+        {
+            var action = new VisualElement()
+            {
+                style = { flexDirection = FlexDirection.Row }
+            };
+            var button = new Button
+            {
+                text = "Join Taxiway",
+                style =
+                {
+                    flexGrow = 1f
+                }
+            };
             var dropdown = GetTaxiwayDropdown(taxiways);
-            var button = GetJoinTaxiwayButton();
             var aircraft = target as Aircraft;
             
             button.clicked += () =>
@@ -53,13 +107,10 @@ namespace MISC
                 var direction = Spline.Direction.Forward;
                 aircraft!.JoinTaxiway(taxiway, direction);
             };
-            actions.Add(dropdown);
-            actions.Add(button);
-            actions.SetEnabled(EditorApplication.isPlaying);
-            box.Add(label);
-            box.Add(actions);
-            root.Add(box);
-            return root;
+            action.Add(dropdown);
+            action.Add(button);
+            action.SetEnabled(EditorApplication.isPlaying);
+            return action;
         }
 
         private VisualElement GetRootElement()
@@ -75,18 +126,6 @@ namespace MISC
             }
 
             return root;
-        }
-
-        private Button GetJoinTaxiwayButton()
-        {
-            return new Button
-            {
-                text = "Join Taxiway",
-                style =
-                {
-                    flexGrow = 1f
-                }
-            };
         }
 
         private DropdownField GetTaxiwayDropdown(SplineComputer[] taxiways)

@@ -2,7 +2,7 @@
 using Dreamteck.Splines;
 using UnityEngine;
 
-namespace TFC
+namespace Traffic
 {
     internal class TaxiwayInterceptor : SplineFollower
     {
