@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Aircraft
   - Taxiway
+  - Runway
   layers:
   - Default
   - TransparentFX

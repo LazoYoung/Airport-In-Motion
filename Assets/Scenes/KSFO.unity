@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 3966.0288, g: 3060.7053, b: 2505.217, a: 1}
+  m_IndirectSpecularColor: {r: 3959.1577, g: 3048.637, b: 2482.6545, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -939,6 +939,25 @@ MonoBehaviour:
       enableFptlForForwardOpaque: 0
       enableBigTilePrepass: 0
       isFptlEnabled: 0
+--- !u!1 &1573512477 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4307823932569394788, guid: fa58243bf07a73a43a8735cf4d6b682f, type: 3}
+  m_PrefabInstance: {fileID: 742089729486026499}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1573512480
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1573512477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b05af8ba6b341d49ffa539ff2900889, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  identifier: 
+  spline: {fileID: 0}
 --- !u!1001 &1589704493
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -996,6 +1015,25 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f16f6fa0b005dfe42aa06b393d37bfac, type: 3}
+--- !u!1 &1634505622 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5401958024369318908, guid: fa58243bf07a73a43a8735cf4d6b682f, type: 3}
+  m_PrefabInstance: {fileID: 742089729486026499}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1634505625
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1634505622}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b05af8ba6b341d49ffa539ff2900889, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  identifier: 
+  spline: {fileID: 0}
 --- !u!1 &1667990139
 GameObject:
   m_ObjectHideFlags: 0
@@ -1177,6 +1215,12 @@ PrefabInstance:
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 5401958024369318908, guid: fa58243bf07a73a43a8735cf4d6b682f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1634505625}
+    - targetCorrespondingSourceObject: {fileID: 4307823932569394788, guid: fa58243bf07a73a43a8735cf4d6b682f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1573512480}
     - targetCorrespondingSourceObject: {fileID: 5240767845323261582, guid: fa58243bf07a73a43a8735cf4d6b682f, type: 3}
       insertIndex: -1
       addedObject: {fileID: 562071406}

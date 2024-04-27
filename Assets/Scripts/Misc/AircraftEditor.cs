@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Dreamteck.Splines;
 using Traffic;
 using UnityEditor;
@@ -67,20 +68,13 @@ namespace Misc
             
             textField.RegisterValueChangedCallback(e =>
             {
-                textField.SetValueWithoutNotify(e.newValue.ToUpper());
+                var regex = new Regex("(via)", RegexOptions.IgnoreCase);
+                string value = regex.Replace(e.newValue.ToUpper(), "via");
+                textField.SetValueWithoutNotify(value);
             });
             button.clicked += () =>
             {
-                var taxiways = TaxiInstruction.GetTaxiways(textField.text);
-
-                if (taxiways.Length > 0)
-                {
-                    aircraft!.Taxi(new TaxiInstruction(taxiways));
-                }
-                else
-                {
-                    Debug.LogWarning("Invalid taxiway!");
-                }
+                aircraft!.Taxi(new TaxiInstruction(textField.text));
             };
             action.Add(textField);
             action.Add(button);
