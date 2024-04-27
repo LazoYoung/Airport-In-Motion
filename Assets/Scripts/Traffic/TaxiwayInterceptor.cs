@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace Traffic
 {
+    [Obsolete("Replaced by Traffic.Pathfinder class")]
     internal class TaxiwayInterceptor : SplineFollower
     {
         internal event Action<SplineComputer, Spline.Direction> OnIntercept;

@@ -56,7 +56,7 @@ namespace Misc
             };
             var textField = new TextField()
             {
-                style = { flexGrow = 1f, marginRight = 20f }
+                style = { flexGrow = 1f, marginRight = 20f },
             };
             var button = new Button()
             {
@@ -65,6 +65,10 @@ namespace Misc
             };
             var aircraft = target as Aircraft;
             
+            textField.RegisterValueChangedCallback(e =>
+            {
+                textField.SetValueWithoutNotify(e.newValue.ToUpper());
+            });
             button.clicked += () =>
             {
                 var taxiways = TaxiInstruction.GetTaxiways(textField.text);
