@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using Dreamteck.Splines;
-using JetBrains.Annotations;
 
 namespace Layout
 {
@@ -8,11 +7,9 @@ namespace Layout
     {
         private static readonly Dictionary<string, Runway> Cached = new();
 
-        [CanBeNull]
-        public static Runway Get(string identifier)
+        public static void Find(string identifier, out Runway runway)
         {
-            Cached.TryGetValue(identifier, out var runway);
-            return runway;
+            Cached.TryGetValue(identifier, out runway);
         }
         
         private void OnEnable()

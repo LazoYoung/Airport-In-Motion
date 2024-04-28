@@ -68,8 +68,9 @@ namespace Misc
             
             textField.RegisterValueChangedCallback(e =>
             {
-                var regex = new Regex("(via)", RegexOptions.IgnoreCase);
-                string value = regex.Replace(e.newValue.ToUpper(), "via");
+                string rawValue = e.newValue.ToUpper();
+                var regex = new Regex("(via)|(short)|(cross)", RegexOptions.IgnoreCase);
+                string value = regex.Replace(rawValue, eval => eval.Value.ToLower());
                 textField.SetValueWithoutNotify(value);
             });
             button.clicked += () =>

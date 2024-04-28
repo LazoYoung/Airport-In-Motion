@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using Dreamteck.Splines;
-using JetBrains.Annotations;
 using UnityEngine;
 
 namespace Layout
@@ -10,11 +9,9 @@ namespace Layout
     {
         private static readonly Dictionary<string, Taxiway> Cached = new();
         
-        [CanBeNull]
-        public static Taxiway Get(string identifier)
+        public static void Find(string identifier, out Taxiway taxiway)
         {
-            Cached.TryGetValue(identifier, out var taxiway);
-            return taxiway;
+            Cached.TryGetValue(identifier, out taxiway);
         }
         
         private void OnEnable()
