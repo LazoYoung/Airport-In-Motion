@@ -1,5 +1,6 @@
 ﻿using System;
 using Dreamteck.Splines;
+using Layout;
 using UnityEngine;
 
 namespace Traffic
@@ -55,7 +56,12 @@ namespace Traffic
 
         private void OnTaxiHold()
         {
-            Debug.Log("Taxi hold...");
+            Debug.Log("Holding position");
+        }
+        
+        private void OnTaxiwayEnter(Taxiway twy)
+        {
+            Debug.Log($"Entering taxiway {twy.identifier}");
         }
         
         private void OnIntercept(SplineComputer taxiway, Spline.Direction direction)
@@ -71,12 +77,13 @@ namespace Traffic
             pathfinder.hideFlags = HideFlags.HideAndDontSave;
             pathfinder.follow = false;
             pathfinder.TaxiHold += OnTaxiHold;
+            pathfinder.TaxiwayEnter += OnTaxiwayEnter;
 
             interceptor = gameObject.AddComponent<TaxiwayInterceptor>();
             interceptor.hideFlags = HideFlags.HideAndDontSave;
             interceptor.Intercept += OnIntercept;
         }
-
+        
         private void OnDisable()
         {
             Destroy(pathfinder);

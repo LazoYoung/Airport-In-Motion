@@ -19,6 +19,8 @@ namespace Traffic
     {
         public event Action TaxiHold;
         
+        public event Action<Taxiway> TaxiwayEnter;
+        
         protected override void Start()
         {
             base.Start();
@@ -44,24 +46,22 @@ namespace Traffic
 
         public void Taxi(Aircraft aircraft, TaxiInstruction instruction)
         {
-            var points = GetTaxiPath(aircraft, instruction);
-
-            if (points.Length > 0)
+            if (CreateTaxiPath(aircraft, instruction))
             {
-                spline.SetPoints(points);
                 SetPercent(0);
-                RebuildImmediate();
                 follow = true;
             }
         }
 
-        private SplinePoint[] GetTaxiPath(Aircraft aircraft, TaxiInstruction instruction)
+        private bool CreateTaxiPath(Aircraft aircraft, TaxiInstruction instruction)
         {
-            if (instruction.taxiways.Count == 0)
-                return Array.Empty<SplinePoint>();
-
-            var tf = aircraft.transform;
             var points = new List<SplinePoint>();
+            var triggerPoints = new Dictionary<Taxiway, int>();
+            
+            if (instruction.taxiways.Count == 0)
+                return false;
+            
+            var tf = aircraft.transform;
             var startPos = tf.position;
             var turnPos = startPos + aircraft.turnRadius * tf.forward;
             var joint = new SplineSample();
@@ -126,20 +126,36 @@ namespace Traffic
                     node = node.Next;
                 }
                 
-                var range = GetSegmentPoints(segment, aircraft, ref joint);
-                points.AddRange(range);
+                AddSegmentPoints(ref points, out int triggerPointIndex, segment, aircraft);
+                triggerPoints.Add(taxiway, triggerPointIndex);
+            }
+            
+            spline.SetPoints(points.ToArray());
+            RebuildImmediate();
+            
+            var group = spline.AddTriggerGroup();
+            group.color = Color.green;
+            group.name = "enter";
+
+            foreach (var pair in triggerPoints)
+            {
+                var twy = pair.Key;
+                int pointIndex = pair.Value;
+                double percent = spline.GetPointPercent(pointIndex);
+                var trigger = group.AddTrigger(percent, SplineTrigger.Type.Forward);
+                trigger.AddListener(_ => TaxiwayEnter?.Invoke(twy));
             }
 
-            return points.ToArray();
+            return true;
         }
 
-        private List<SplinePoint> GetSegmentPoints(Segment segment, Aircraft aircraft, ref SplineSample joint)
+        private void AddSegmentPoints(ref List<SplinePoint> points, out int triggerPointIndex, Segment segment, Aircraft aircraft)
         {
-            var points = new List<SplinePoint>();
             var spl = segment.spline;
             var startPos = segment.startPosition;
             int startPointIdx = segment.startPointIdx;
             int endPointIdx = segment.endPointIdx;
+            var joint = new SplineSample();
             var firstPos = spl.GetPointPosition(startPointIdx + 1);
             bool isForward = spl.GetPointPercent(endPointIdx) >
                              spl.GetPointPercent(startPointIdx);
@@ -161,9 +177,9 @@ namespace Traffic
             // Evaluate next intersecting or final point
             spl.Evaluate(endPointIdx, ref joint);
 
+            triggerPointIndex = points.Count;
             AddPoint(points, joint.position - aircraft.turnRadius * forward);
             AddPoint(points, joint.position);
-            return points;
         }
 
         /**
