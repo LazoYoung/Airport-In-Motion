@@ -47,9 +47,10 @@ namespace Traffic
         
         private SplinePoint[] GetTaxiPath(Aircraft aircraft, TaxiInstruction instruction)
         {
-            var taxiways = instruction.Taxiways;
+            var taxiways = new Taxiway[instruction.Taxiways.Count];
+            instruction.Taxiways.CopyTo(taxiways, 0);
             
-            if (taxiways == null || taxiways.Length == 0)
+            if (taxiways.Length == 0)
                 return Array.Empty<SplinePoint>();
 
             var tf = aircraft.transform;
@@ -91,9 +92,12 @@ namespace Traffic
                     startPointIdx = startPointIdx,
                     endPointIdx = thisPathJunctionIdx
                 };
+                
+                // todo: check hold short instruction
+                
                 segmentPoints = GetSegmentPoints(segment, aircraft, ref joint);
                 points.AddRange(segmentPoints);
-
+                
                 startPointIdx = nextPathJunctionIdx;
                 startPos = junctionNode.transform.position;
             }
@@ -110,6 +114,7 @@ namespace Traffic
                     startPointIdx = startPointIdx,
                     endPointIdx = jointTuple.Item1
                 };
+                // todo: do not penetrate the runway
             }
             else
             {
@@ -121,15 +126,11 @@ namespace Traffic
                     startPointIdx = startPointIdx,
                     endPointIdx = lastSpline.pointCount - 1
                 };
+                // todo: check hold short instruction
             }
-
+            
             segmentPoints = GetSegmentPoints(segment, aircraft, ref joint);
             points.AddRange(segmentPoints);
-            
-            if (jointTuple != null)
-            {
-                // todo lineup runway
-            }
             
             return points.ToArray();
         }

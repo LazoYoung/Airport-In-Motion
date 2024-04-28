@@ -1,5 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using JetBrains.Annotations;
 using Layout;
@@ -10,53 +10,61 @@ namespace Traffic
 {
     public class TaxiInstruction
     {
-        public readonly Taxiway[] Taxiways;
-        public readonly Runway[] CrossRunways;
+        public readonly Queue<Taxiway> Taxiways;
+        public readonly Queue<Runway> CrossRunways;
         public readonly Runway DepartRunway;
         public readonly Path HoldShort;
 
-        // Expected format: [(RWY) via] {(TWY...)} [short (TWY/RWY)] [cross (RWY)]
+        // Expected format: [(RWY) via] {(TWY...)} [cross (RWY...)] [short (TWY/RWY)]
         // Example 1: 1R via B M short 1L
         // Example 2: 28R via A F cross 1L 1R short 28L
         public TaxiInstruction(string instruction)
         {
-            var taxiwayList = new List<Taxiway>();
-            
             TrimLeadingZeros(ref instruction);
+            Taxiways = new Queue<Taxiway>();
             DepartRunway = GetDepartRunway(ref instruction);
             HoldShort = GetHoldShort(ref instruction);
             CrossRunways = GetCrossRunways(ref instruction);
+
+            if (instruction.Length > 0)
+                Debug.Log("Taxi via " + instruction);
             
-            Debug.Log("Taxi via: " + instruction);
+            if (DepartRunway != null)
+                Debug.Log("Depart runway: " + DepartRunway.identifier);
+            
+            if (CrossRunways.Count > 0)
+                Debug.Log("Cross runway: " + string.Join(", ", CrossRunways.Select(r => r.identifier)));
+            
+            if (HoldShort != null)
+                Debug.Log("Hold short: " + HoldShort.identifier);
             
             foreach (string identifier in instruction.Split(' '))
             {
                 Taxiway.Find(identifier, out var taxiway);
 
-                if (taxiway == null)
+                if (taxiway != null)
                 {
-                    taxiwayList.Clear();
-                    break;
+                    Taxiways.Enqueue(taxiway);
                 }
-
-                taxiwayList.Add(taxiway);
+                else
+                {
+                    Debug.LogWarning($"Invalid taxiway: {identifier}");
+                }
             }
-
-            Taxiways = taxiwayList.ToArray();
         }
 
-        private Runway[] GetCrossRunways(ref string instruction)
+        private Queue<Runway> GetCrossRunways(ref string instruction)
         {
             var regexCross = new Regex("(?: cross (?:\\d+[LCR]?\\s?)+)", IgnoreCase);
             var matchCross = regexCross.Match(instruction);
+            var queue = new Queue<Runway>();
 
             if (!matchCross.Success)
             {
-                return Array.Empty<Runway>();
+                return queue;
             }
             
             var regexRunways = new Regex("(\\d+[LCR]?)", IgnoreCase);
-            var crossRunways = new List<Runway>();
 
             foreach (Match match in regexRunways.Matches(matchCross.Value))
             {
@@ -65,13 +73,12 @@ namespace Traffic
 
                 if (runway != null)
                 {
-                    crossRunways.Add(runway);
-                    Debug.Log("Cross runway: " + identifier);
+                    queue.Enqueue(runway);
                 }
             }
 
             instruction = regexCross.Replace(instruction, "");
-            return crossRunways.ToArray();
+            return queue;
         }
 
         [CanBeNull]
@@ -96,8 +103,6 @@ namespace Traffic
                 {
                     holdShort = taxiway;
                 }
-                
-                Debug.Log("Hold short: " + identifier);
             }
 
             return holdShort;
@@ -115,8 +120,6 @@ namespace Traffic
                 string identifier = matchDepart.Result("$1");
                 Runway.Find(identifier, out runway);
                 instruction = regexDepart.Replace(instruction, "");
-
-                Debug.Log("Depart runway: " + identifier);
             }
 
             return runway;
