@@ -69,13 +69,13 @@ namespace Misc
             textField.RegisterValueChangedCallback(e =>
             {
                 string rawValue = e.newValue.ToUpper();
-                var regex = new Regex("(via)|(short)|(cross)", RegexOptions.IgnoreCase);
-                string value = regex.Replace(rawValue, eval => eval.Value.ToLower());
+                string value = TaxiInstruction.k_TokenRegex.Replace(rawValue, eval => eval.Value.ToLower());
                 textField.SetValueWithoutNotify(value);
             });
             button.clicked += () =>
             {
-                aircraft!.Taxi(new TaxiInstruction(textField.text));
+                aircraft!.Taxi(textField.value);
+                textField.value = "";
             };
             action.Add(textField);
             action.Add(button);

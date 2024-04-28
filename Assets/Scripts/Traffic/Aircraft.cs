@@ -1,37 +1,43 @@
 ﻿using System;
 using Dreamteck.Splines;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace Traffic
 {
     public class Aircraft : MonoBehaviour
     {
-        [SerializeField]
-        public float taxiSpeed = 10f;
-        
-        [SerializeField]
-        public float turnRadius = 30f;
-        
-        [FormerlySerializedAs("follower")] [HideInInspector] [SerializeField]
-        private Pathfinder pathfinder;
-        
-        [HideInInspector] [SerializeField]
-        private TaxiwayInterceptor interceptor;
-        
+        [SerializeField] public float taxiSpeed = 10f;
+
+        [SerializeField] public float turnRadius = 30f;
+
+        [HideInInspector] [SerializeField] private Pathfinder pathfinder;
+
+        [HideInInspector] [SerializeField] private TaxiwayInterceptor interceptor;
+
         [Obsolete] [HideInInspector] [SerializeField]
         private Spline.Direction taxiDirection;
 
+        private TaxiInstruction _taxiInstruction;
+
         public void JoinTaxiway(SplineComputer taxiway, Spline.Direction direction)
         {
-            interceptor.Intercept(taxiway, direction, taxiSpeed, turnRadius);
+            interceptor.Join(taxiway, direction, taxiSpeed, turnRadius);
         }
 
-        public void Taxi(TaxiInstruction instruction)
+        public void Taxi(string instruction)
         {
-            pathfinder.Taxi(this, instruction);
+            if (_taxiInstruction == null)
+            {
+                _taxiInstruction = new TaxiInstruction(instruction);
+            }
+            else
+            {
+                _taxiInstruction.Amend(instruction);
+            }
+
+            pathfinder.Taxi(this, _taxiInstruction);
         }
-        
+
         [Obsolete("Use Aircraft.Taxi() instead.")]
         public void StartTaxi(SplineComputer spline, Spline.Direction direction)
         {
@@ -46,23 +52,29 @@ namespace Traffic
             pathfinder.followMode = SplineFollower.FollowMode.Uniform;
             pathfinder.follow = true;
         }
-    
+
+        private void OnTaxiHold()
+        {
+            Debug.Log("Taxi hold...");
+        }
+        
         private void OnIntercept(SplineComputer taxiway, Spline.Direction direction)
         {
             StartTaxi(taxiway, direction);
         }
-    
+
         private void OnEnable()
         {
             tag = "Aircraft";
-        
+
             pathfinder = gameObject.AddComponent<Pathfinder>();
             pathfinder.hideFlags = HideFlags.HideAndDontSave;
             pathfinder.follow = false;
-        
+            pathfinder.TaxiHold += OnTaxiHold;
+
             interceptor = gameObject.AddComponent<TaxiwayInterceptor>();
             interceptor.hideFlags = HideFlags.HideAndDontSave;
-            interceptor.OnIntercept += OnIntercept;
+            interceptor.Intercept += OnIntercept;
         }
 
         private void OnDisable()

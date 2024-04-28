@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Dreamteck.Splines;
+using JetBrains.Annotations;
 using Layout;
 using UnityEngine;
 
@@ -8,14 +9,16 @@ namespace Traffic
 {
     internal record Segment
     {
-        internal SplineComputer spline { get; init; }
-        internal Vector3 startPosition { get; init; }
-        internal int startPointIdx { get; init; }
-        internal int endPointIdx { get; init; }
+        internal SplineComputer spline { get; set; }
+        internal Vector3 startPosition { get; set; }
+        internal int startPointIdx { get; set; }
+        internal int endPointIdx { get; set; }
     }
-    
+
     public class Pathfinder : SplineFollower
     {
+        public event Action TaxiHold;
+        
         protected override void Start()
         {
             base.Start();
@@ -28,110 +31,105 @@ namespace Traffic
             direction = Spline.Direction.Forward;
             wrapMode = Wrap.Default;
             followMode = FollowMode.Uniform;
+            onEndReached += OnEndReached;
         }
 
         protected override void OnDisable()
         {
             base.OnDisable();
-            
+
             Destroy(spline);
+            onEndReached -= OnEndReached;
         }
 
         public void Taxi(Aircraft aircraft, TaxiInstruction instruction)
         {
             var points = GetTaxiPath(aircraft, instruction);
-            spline.SetPoints(points);
-            RebuildImmediate();
-            follow = true;
+
+            if (points.Length > 0)
+            {
+                spline.SetPoints(points);
+                SetPercent(0);
+                RebuildImmediate();
+                follow = true;
+            }
         }
-        
+
         private SplinePoint[] GetTaxiPath(Aircraft aircraft, TaxiInstruction instruction)
         {
-            var taxiways = new Taxiway[instruction.Taxiways.Count];
-            instruction.Taxiways.CopyTo(taxiways, 0);
-            
-            if (taxiways.Length == 0)
+            if (instruction.taxiways.Count == 0)
                 return Array.Empty<SplinePoint>();
 
             var tf = aircraft.transform;
             var points = new List<SplinePoint>();
             var startPos = tf.position;
             var turnPos = startPos + aircraft.turnRadius * tf.forward;
-            var firstSpline = taxiways[0].spline;
             var joint = new SplineSample();
-
-            firstSpline.Project(turnPos, ref joint);
+            var node = instruction.taxiways.First;
+            var taxiway = node.Value;
+            
+            taxiway.spline.Project(turnPos, ref joint);
             AddPoint(points, startPos);
             AddPoint(points, turnPos);
             AddPoint(points, joint.position);
 
-            Segment segment;
-            List<SplinePoint> segmentPoints;
-            Tuple<int, int, Node> jointTuple;
-            int startPointIdx = firstSpline.PercentToPointIndex(joint.percent);
+            int startPointIdx = taxiway.spline.PercentToPointIndex(joint.percent);
             startPos = joint.position;
+            var terminate = false;
 
-            // Draw path along taxiways except the last one
-            for (var t = 1; t < taxiways.Length; ++t)
+            while (!terminate && node != null)
             {
-                var thisPath = taxiways[t - 1];
-                var nextPath = taxiways[t];
-                var thisSpline = thisPath.spline;
-                jointTuple = GetJoint(startPos, thisPath, nextPath);
+                taxiway = node.Value;
+                var segment = new Segment();
+                var junction = FindJunction(startPos, taxiway, instruction.holdShort);
 
-                if (jointTuple.Item3 == null)
-                    break;
+                if (junction != null)
+                {
+                    // Proceed to holding point
+                    terminate = true;
+                }
+                else if (node.Next != null)
+                {
+                    // Proceed to next taxiway
+                    junction = FindJunction(startPos, taxiway, node.Next.Value);
+                }
+                else
+                {
+                    // Proceed to runway
+                    var runway = instruction.departRunway;
+                    junction = FindJunction(startPos, taxiway, runway);
+                }
+                
+                if (junction == null)
+                {
+                    terminate = true;
+                    segment.spline = taxiway.spline;
+                    segment.startPosition = startPos;
+                    segment.startPointIdx = startPointIdx;
+                    segment.endPointIdx = taxiway.spline.pointCount - 1;
+                }
+                else
+                {
+                    int thisPathJunctionIdx = junction.Item1;
+                    int nextPathJunctionIdx = junction.Item2;
+                    var junctionNode = junction.Item3;
+                    segment.spline = taxiway.spline;
+                    segment.startPosition = startPos;
+                    segment.startPointIdx = startPointIdx;
+                    segment.endPointIdx = thisPathJunctionIdx;
+                    startPos = junctionNode.transform.position;
+                    startPointIdx = nextPathJunctionIdx;
+                }
+                
+                if (!terminate)
+                {
+                    node = node.Next;
+                }
+                
+                var range = GetSegmentPoints(segment, aircraft, ref joint);
+                points.AddRange(range);
+            }
 
-                int thisPathJunctionIdx = jointTuple.Item1;
-                int nextPathJunctionIdx = jointTuple.Item2;
-                var junctionNode = jointTuple.Item3;
-                segment = new Segment()
-                {
-                    spline = thisSpline,
-                    startPosition = startPos,
-                    startPointIdx = startPointIdx,
-                    endPointIdx = thisPathJunctionIdx
-                };
-                
-                // todo: check hold short instruction
-                
-                segmentPoints = GetSegmentPoints(segment, aircraft, ref joint);
-                points.AddRange(segmentPoints);
-                
-                startPointIdx = nextPathJunctionIdx;
-                startPos = junctionNode.transform.position;
-            }
-            
-            var runway = instruction.DepartRunway;
-            jointTuple = runway != null ? GetJoint(startPos, taxiways[^1], runway) : null;
-
-            if (jointTuple != null)
-            {
-                segment = new Segment()
-                {
-                    spline = taxiways[^1].spline,
-                    startPosition = startPos,
-                    startPointIdx = startPointIdx,
-                    endPointIdx = jointTuple.Item1
-                };
-                // todo: do not penetrate the runway
-            }
-            else
-            {
-                var lastSpline = taxiways[^1].spline;
-                segment = new Segment()
-                {
-                    spline = lastSpline,
-                    startPosition = startPos,
-                    startPointIdx = startPointIdx,
-                    endPointIdx = lastSpline.pointCount - 1
-                };
-                // todo: check hold short instruction
-            }
-            
-            segmentPoints = GetSegmentPoints(segment, aircraft, ref joint);
-            points.AddRange(segmentPoints);
-            
             return points.ToArray();
         }
 
@@ -145,7 +143,7 @@ namespace Traffic
             var firstPos = spl.GetPointPosition(startPointIdx + 1);
             bool isForward = spl.GetPointPercent(endPointIdx) >
                              spl.GetPointPercent(startPointIdx);
-            
+
             // Evaluate previous intersecting point
             spl.Evaluate(startPointIdx, ref joint);
             var forward = isForward ? joint.forward : -joint.forward;
@@ -162,20 +160,24 @@ namespace Traffic
 
             // Evaluate next intersecting or final point
             spl.Evaluate(endPointIdx, ref joint);
-                
+
             AddPoint(points, joint.position - aircraft.turnRadius * forward);
             AddPoint(points, joint.position);
             return points;
         }
 
         /**
-         * Returns a tuple consisting of the following items:   <br/>
-         * 1. Index of the intersecting point for thisPath      <br/>
-         * 2. Index of the intersecting point for nextPath      <br/>
-         * 3. The node connecting two paths                     <br/>
+         * If two paths intersect, the following items are returned:   <br/>
+         * 1. Index of the intersecting point for thisPath             <br/>
+         * 2. Index of the intersecting point for nextPath             <br/>
+         * 3. The node connecting two paths                            <br/>
          */
-        private Tuple<int, int, Node> GetJoint(Vector3 origin, Path thisPath, Path nextPath)
+        [CanBeNull]
+        private Tuple<int, int, Node> FindJunction(Vector3 origin, Path thisPath, Path nextPath)
         {
+            if (thisPath == null || nextPath == null)
+                return null;
+            
             var thisSpline = thisPath.spline;
             var nextSpline = nextPath.spline;
             var distance = float.MaxValue;
@@ -207,12 +209,20 @@ namespace Traffic
                 }
             }
 
+            if (junction == null)
+                return null;
+
             return new Tuple<int, int, Node>(thisPointIdx, nextPointIdx, junction);
         }
 
         private void AddPoint(List<SplinePoint> list, Vector3 element)
         {
             list.Add(new SplinePoint(element));
+        }
+
+        private void OnEndReached(double d)
+        {
+            TaxiHold?.Invoke();
         }
     }
 }

@@ -10,10 +10,13 @@ namespace Traffic
 {
     public class TaxiInstruction
     {
-        public readonly Queue<Taxiway> Taxiways;
-        public readonly Queue<Runway> CrossRunways;
-        public readonly Runway DepartRunway;
-        public readonly Path HoldShort;
+        public static readonly Regex k_TokenRegex = new("(via)|(short)|(cross)|(expect)", IgnoreCase);
+        public static readonly Regex k_RunwayRegex = new("(?<=^|\\s)(\\d{1,2}[LCR]?)(?=$|\\s)");
+
+        public LinkedList<Taxiway> taxiways { get; private set; }
+        public Queue<Runway> crossRunways { get; private set; }
+        public Runway departRunway { get; private set; }
+        public Path holdShort { get; private set; }
 
         // Expected format: [(RWY) via] {(TWY...)} [cross (RWY...)] [short (TWY/RWY)]
         // Example 1: 1R via B M short 1L
@@ -21,41 +24,87 @@ namespace Traffic
         public TaxiInstruction(string instruction)
         {
             TrimLeadingZeros(ref instruction);
-            Taxiways = new Queue<Taxiway>();
-            DepartRunway = GetDepartRunway(ref instruction);
-            HoldShort = GetHoldShort(ref instruction);
-            CrossRunways = GetCrossRunways(ref instruction);
+            departRunway = GetDepartRunway(ref instruction);
+            holdShort = GetHoldShort(ref instruction);
+            crossRunways = GetCrossRunways(ref instruction);
+            string taxiInstruction = instruction.Trim();
+            taxiways = GetTaxiways(taxiInstruction);
 
-            if (instruction.Length > 0)
-                Debug.Log("Taxi via " + instruction);
-            
-            if (DepartRunway != null)
-                Debug.Log("Depart runway: " + DepartRunway.identifier);
-            
-            if (CrossRunways.Count > 0)
-                Debug.Log("Cross runway: " + string.Join(", ", CrossRunways.Select(r => r.identifier)));
-            
-            if (HoldShort != null)
-                Debug.Log("Hold short: " + HoldShort.identifier);
-            
-            foreach (string identifier in instruction.Split(' '))
+            Debug.Log("Taxi"
+                      + $"{(departRunway == null ? "" : $" to runway {departRunway.identifier}")}"
+                      + $"{(taxiways.Count > 0 ? " via " + string.Join(", ", taxiways.Select(t => t.identifier)) : "")}"
+                      + $"{(crossRunways.Count > 0 ? " cross " + string.Join(", ", crossRunways.Select(r => r.identifier)) : "")}"
+                      + $"{(holdShort != null ? $" hold {holdShort.identifier}" : "")}"
+            );
+        }
+
+        public void Amend(string instruction)
+        {
+            TrimLeadingZeros(ref instruction);
+            var newDepartRunway = GetDepartRunway(ref instruction);
+            var newHoldShort = GetHoldShort(ref instruction);
+            var newCrossRunway = GetCrossRunways(ref instruction);
+            string taxiInstruction = instruction.Trim();
+            var newTaxiways = GetTaxiways(taxiInstruction);
+
+            if (newDepartRunway != null)
+                departRunway = newDepartRunway;
+
+            if (newHoldShort != null)
+                holdShort = newHoldShort;
+
+            foreach (var runway in newCrossRunway)
             {
+                crossRunways.Enqueue(runway);
+
+                if (runway.identifier.Equals(holdShort?.identifier))
+                    holdShort = null;
+            }
+
+            if (newTaxiways.Count > 0)
+            {
+                taxiways = newTaxiways;
+            }
+
+            Debug.Log("Amend taxi"
+                      + $"{(departRunway == null ? "" : $" to runway {departRunway.identifier}")}"
+                      + $"{(taxiways.Count > 0 ? " via " + string.Join(", ", taxiways.Select(t => t.identifier)) : "")}"
+                      + $"{(crossRunways.Count > 0 ? " cross " + string.Join(", ", crossRunways.Select(r => r.identifier)) : "")}"
+                      + $"{(holdShort != null ? $" hold {holdShort.identifier}" : "")}"
+            );
+        }
+
+        private LinkedList<Taxiway> GetTaxiways(string instruction)
+        {
+            var list = new LinkedList<Taxiway>();
+            instruction = instruction.Trim();
+            
+            if (string.IsNullOrEmpty(instruction))
+                return list;
+
+            var regex = new Regex("(?:^|[\\s])([A-Z]+\\d*)");
+                
+            foreach (Match match in regex.Matches(instruction))
+            {
+                string identifier = match.Result("$1");
                 Taxiway.Find(identifier, out var taxiway);
 
                 if (taxiway != null)
                 {
-                    Taxiways.Enqueue(taxiway);
+                    list.AddLast(taxiway);
                 }
                 else
                 {
                     Debug.LogWarning($"Invalid taxiway: {identifier}");
                 }
             }
+
+            return list;
         }
 
         private Queue<Runway> GetCrossRunways(ref string instruction)
         {
-            var regexCross = new Regex("(?: cross (?:\\d+[LCR]?\\s?)+)", IgnoreCase);
+            var regexCross = new Regex("(cross (?:\\d+[LCR]?\\s?)+\\s*)", IgnoreCase);
             var matchCross = regexCross.Match(instruction);
             var queue = new Queue<Runway>();
 
@@ -66,7 +115,7 @@ namespace Traffic
             
             var regexRunways = new Regex("(\\d+[LCR]?)", IgnoreCase);
 
-            foreach (Match match in regexRunways.Matches(matchCross.Value))
+            foreach (Match match in regexRunways.Matches(matchCross.Result("$1")))
             {
                 string identifier = match.Value;
                 Runway.Find(identifier, out var runway);
@@ -84,9 +133,9 @@ namespace Traffic
         [CanBeNull]
         private Path GetHoldShort(ref string instruction)
         {
-            var regexShort = new Regex("(?: short (\\w+))", IgnoreCase);
+            var regexShort = new Regex("(?:short (\\w+)\\s*)", IgnoreCase);
             var matchShort = regexShort.Match(instruction);
-            Path holdShort = null;
+            Path path = null;
             
             if (matchShort.Success)
             {
@@ -97,27 +146,27 @@ namespace Traffic
 
                 if (runway != null)
                 {
-                    holdShort = runway;
+                    path = runway;
                 }
                 else if (taxiway != null)
                 {
-                    holdShort = taxiway;
+                    path = taxiway;
                 }
             }
 
-            return holdShort;
+            return path;
         }
 
         [CanBeNull]
         private Runway GetDepartRunway(ref string instruction)
         {
-            var regexDepart = new Regex("(?:(\\w+) via )", IgnoreCase);
+            var regexDepart = new Regex("(\\w+ via)|(expect \\w+)", IgnoreCase);
             var matchDepart = regexDepart.Match(instruction);
             Runway runway = null;
 
             if (matchDepart.Success)
             {
-                string identifier = matchDepart.Result("$1");
+                string identifier = k_RunwayRegex.Match(matchDepart.Result("$&")).Result("$1");
                 Runway.Find(identifier, out runway);
                 instruction = regexDepart.Replace(instruction, "");
             }

@@ -7,7 +7,7 @@ namespace Traffic
     [Obsolete("Replaced by Traffic.Pathfinder class")]
     internal class TaxiwayInterceptor : SplineFollower
     {
-        internal event Action<SplineComputer, Spline.Direction> OnIntercept;
+        internal event Action<SplineComputer, Spline.Direction> Intercept;
         [HideInInspector] [SerializeField] private SplineComputer taxiway;
         [HideInInspector] [SerializeField] private Spline.Direction taxiDirection;
 
@@ -18,7 +18,7 @@ namespace Traffic
             follow = false;
         }
 
-        internal void Intercept(SplineComputer taxiway, Spline.Direction taxiDirection, float speed, float turnRadius)
+        internal void Join(SplineComputer taxiway, Spline.Direction taxiDirection, float speed, float turnRadius)
         {
             var sample = new SplineSample();
             this.taxiDirection = taxiDirection;
@@ -59,7 +59,7 @@ namespace Traffic
             onEndReached -= OnEndReached;
             follow = false;
             Destroy(spline);
-            OnIntercept?.Invoke(taxiway, taxiDirection);
+            Intercept?.Invoke(taxiway, taxiDirection);
         }
     }
 }
