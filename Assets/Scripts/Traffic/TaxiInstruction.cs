@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using JetBrains.Annotations;
 using Layout;
@@ -15,7 +16,8 @@ namespace Traffic
         public readonly Path HoldShort;
 
         // Expected format: [(RWY) via] {(TWY...)} [short (TWY/RWY)] [cross (RWY)]
-        // Example 1: 01R via B M hold short 01L
+        // Example 1: 1R via B M short 1L
+        // Example 2: 28R via A F cross 1L 1R short 28L
         public TaxiInstruction(string instruction)
         {
             var taxiwayList = new List<Taxiway>();
@@ -45,10 +47,18 @@ namespace Traffic
 
         private Runway[] GetCrossRunways(ref string instruction)
         {
-            var regexCross = new Regex("(?: cross (\\w+))", IgnoreCase);
+            var regexCross = new Regex("(?: cross (?:\\d+[LCR]?\\s?)+)", IgnoreCase);
+            var matchCross = regexCross.Match(instruction);
+
+            if (!matchCross.Success)
+            {
+                return Array.Empty<Runway>();
+            }
+            
+            var regexRunways = new Regex("(\\d+[LCR]?)", IgnoreCase);
             var crossRunways = new List<Runway>();
 
-            foreach (Match match in regexCross.Matches(instruction))
+            foreach (Match match in regexRunways.Matches(matchCross.Value))
             {
                 string identifier = match.Value;
                 Runway.Find(identifier, out var runway);
