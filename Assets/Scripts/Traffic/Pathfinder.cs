@@ -19,7 +19,7 @@ namespace Traffic
     {
         public event Action TaxiHold;
         
-        public event Action<Taxiway> TaxiwayEnter;
+        public event Action<Path> EnterPath;
         
         protected override void Start()
         {
@@ -49,6 +49,7 @@ namespace Traffic
             if (CreateTaxiPath(aircraft, instruction))
             {
                 SetPercent(0);
+                useTriggers = true;
                 follow = true;
             }
         }
@@ -56,7 +57,7 @@ namespace Traffic
         private bool CreateTaxiPath(Aircraft aircraft, TaxiInstruction instruction)
         {
             var points = new List<SplinePoint>();
-            var triggerPoints = new List<Tuple<Taxiway, int>>();
+            var triggerPoints = new List<Tuple<Path, int>>();
             
             if (instruction.taxiways.Count == 0)
                 return false;
@@ -82,27 +83,32 @@ namespace Traffic
                 taxiway = node.Value;
                 var segment = new Segment();
                 var junction = FindJunction(startPos, taxiway, instruction.holdShort);
+                Path nextPath;
 
                 if (junction != null)
                 {
                     // Proceed to holding point
                     terminate = true;
+                    nextPath = instruction.holdShort;
                 }
                 else if (node.Next != null)
                 {
                     // Proceed to next taxiway
                     junction = FindJunction(startPos, taxiway, node.Next.Value);
+                    nextPath = node.Next.Value;
                 }
                 else
                 {
                     // Proceed to runway
                     var runway = instruction.departRunway;
                     junction = FindJunction(startPos, taxiway, runway);
+                    nextPath = runway;
                 }
                 
                 if (junction == null)
                 {
                     terminate = true;
+                    nextPath = null;
                     segment.spline = taxiway.spline;
                     segment.startPosition = startPos;
                     segment.startPointIdx = startPointIdx;
@@ -127,26 +133,47 @@ namespace Traffic
                 }
                 
                 AddSegmentPoints(ref points, out var triggerPointIndex, segment, aircraft);
-                triggerPoints.Add(new Tuple<Taxiway, int>(taxiway, triggerPointIndex));
+
+                if (nextPath != null)
+                {
+                    triggerPoints.Add(new Tuple<Path, int>(nextPath, triggerPointIndex));
+                }
             }
             
             spline.SetPoints(points.ToArray());
+            RemoveTriggers();
             RebuildImmediate();
-            
+
             var group = spline.AddTriggerGroup();
-            group.color = Color.green;
             group.name = "enter";
 
             foreach (var pair in triggerPoints)
             {
-                var twy = pair.Item1;
+                var path = pair.Item1;
                 var pointIndex = pair.Item2;
                 var percent = spline.GetPointPercent(pointIndex);
                 var trigger = group.AddTrigger(percent, SplineTrigger.Type.Forward);
-                trigger.AddListener(_ => TaxiwayEnter?.Invoke(twy));
+                trigger.workOnce = true;
+                trigger.AddListener(_ =>
+                {
+                    EnterPath?.Invoke(path);
+                });
             }
 
             return true;
+        }
+
+        private void RemoveTriggers()
+        {
+            foreach (var group in spline.triggerGroups)
+            {
+                for (var idx = 0; idx < group.triggers.Length; ++idx)
+                {
+                    group.RemoveTrigger(idx);
+                }
+            }
+
+            spline.triggerGroups = Array.Empty<TriggerGroup>();
         }
 
         private void AddSegmentPoints(ref List<SplinePoint> points, out int triggerPointIndex, Segment segment, Aircraft aircraft)
@@ -156,30 +183,41 @@ namespace Traffic
             var startPointIdx = segment.startPointIdx;
             var endPointIdx = segment.endPointIdx;
             var joint = new SplineSample();
-            var isForward = startPointIdx < endPointIdx;
-            var delta = isForward ? 1 : -1;
-            var firstPos = spl.GetPointPosition(startPointIdx + delta);
+            Vector3 forward;
 
-            // Evaluate previous intersecting point
-            spl.Evaluate(startPointIdx, ref joint);
-            var forward = isForward ? joint.forward : -joint.forward;
-
-            if (Vector3.Distance(startPos, firstPos) > aircraft.turnRadius)
+            if (startPointIdx == endPointIdx)
             {
-                AddPoint(points, startPos + aircraft.turnRadius * forward);
+                spl.Evaluate(endPointIdx, ref joint);
+                forward = (joint.position - startPos).normalized;
             }
-
-            var from = isForward ? startPointIdx + 1 : startPointIdx - 1;
-            bool CheckRange(int idx) => isForward ? idx < endPointIdx : idx > endPointIdx;
-
-            for (var idx = from; CheckRange(idx); idx += delta)
+            else
             {
-                AddPoint(points, spl.GetPointPosition(idx));
+                var isForward = startPointIdx < endPointIdx;
+                var delta = isForward ? 1 : -1;
+                var firstPos = spl.GetPointPosition(startPointIdx + delta);
+
+                // Evaluate previous intersecting point
+                spl.Evaluate(startPointIdx, ref joint);
+                forward = isForward ? joint.forward : -joint.forward;
+
+                if (Vector3.Distance(startPos, firstPos) > aircraft.turnRadius)
+                {
+                    AddPoint(points, startPos + aircraft.turnRadius * forward);
+                }
+
+                var from = isForward ? startPointIdx + 1 : startPointIdx - 1;
+                bool CheckRange(int idx) => isForward ? idx < endPointIdx : idx > endPointIdx;
+
+                for (var idx = from; CheckRange(idx); idx += delta)
+                {
+                    AddPoint(points, spl.GetPointPosition(idx));
+                }
+                
+                // Evaluate next intersecting or final point
+                spl.Evaluate(endPointIdx, ref joint);
+                forward = isForward ? joint.forward : -joint.forward;
             }
-
-            // Evaluate next intersecting or final point
-            spl.Evaluate(endPointIdx, ref joint);
-
+            
             triggerPointIndex = points.Count;
             AddPoint(points, joint.position - aircraft.turnRadius * forward);
             AddPoint(points, joint.position);

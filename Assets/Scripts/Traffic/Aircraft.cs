@@ -59,9 +59,18 @@ namespace Traffic
             Debug.Log("Holding position");
         }
         
-        private void OnTaxiwayEnter(Taxiway twy)
+        private void OnEnterPath(Path path)
         {
-            Debug.Log($"Entering taxiway {twy.identifier}");
+            Debug.Log($"Entering {path.identifier}");
+
+            var linkedList = _taxiInstruction.taxiways;
+            var node = linkedList.First;
+
+            while (node != null)
+            {
+                node = path.Equals(node.Value) ? null : node.Next;
+                linkedList.RemoveFirst();
+            }
         }
         
         private void OnIntercept(SplineComputer taxiway, Spline.Direction direction)
@@ -77,7 +86,7 @@ namespace Traffic
             pathfinder.hideFlags = HideFlags.HideAndDontSave;
             pathfinder.follow = false;
             pathfinder.TaxiHold += OnTaxiHold;
-            pathfinder.TaxiwayEnter += OnTaxiwayEnter;
+            pathfinder.EnterPath += OnEnterPath;
 
             interceptor = gameObject.AddComponent<TaxiwayInterceptor>();
             interceptor.hideFlags = HideFlags.HideAndDontSave;

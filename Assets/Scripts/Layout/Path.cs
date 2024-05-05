@@ -1,5 +1,4 @@
-﻿using System;
-using Dreamteck.Splines;
+﻿using Dreamteck.Splines;
 using UnityEngine;
 
 namespace Layout
@@ -11,5 +10,10 @@ namespace Layout
         
         [HideInInspector] [SerializeField]
         public SplineComputer spline;
+
+        public bool Equals(Path other)
+        {
+            return other != null && base.GetType() == other.GetType() && identifier == other.identifier;
+        }
     }
 }

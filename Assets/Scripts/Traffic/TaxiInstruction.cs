@@ -57,7 +57,7 @@ namespace Traffic
             {
                 crossRunways.Enqueue(runway);
 
-                if (runway.identifier.Equals(holdShort?.identifier))
+                if (runway.Equals(holdShort))
                     holdShort = null;
             }
 
@@ -162,15 +162,18 @@ namespace Traffic
         {
             var regexDepart = new Regex("(\\w+ via)|(expect \\w+)", IgnoreCase);
             var matchDepart = regexDepart.Match(instruction);
-            Runway runway = null;
 
-            if (matchDepart.Success)
-            {
-                var identifier = runwayRegex.Match(matchDepart.Result("$&")).Result("$1");
-                Runway.Find(identifier, out runway);
-                instruction = regexDepart.Replace(instruction, "");
-            }
+            if (!matchDepart.Success)
+                return null;
+            
+            var runwayMatch = runwayRegex.Match(matchDepart.Result("$&"));
 
+            if (!runwayMatch.Success)
+                return null;
+            
+            var identifier = runwayMatch.Result("$1");
+            Runway.Find(identifier, out var runway);
+            instruction = regexDepart.Replace(instruction, "");
             return runway;
         }
 
