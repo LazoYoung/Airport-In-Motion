@@ -56,7 +56,7 @@ namespace Traffic
         private bool CreateTaxiPath(Aircraft aircraft, TaxiInstruction instruction)
         {
             var points = new List<SplinePoint>();
-            var triggerPoints = new Dictionary<Taxiway, int>();
+            var triggerPoints = new List<Tuple<Taxiway, int>>();
             
             if (instruction.taxiways.Count == 0)
                 return false;
@@ -73,9 +73,9 @@ namespace Traffic
             AddPoint(points, turnPos);
             AddPoint(points, joint.position);
 
-            int startPointIdx = taxiway.spline.PercentToPointIndex(joint.percent);
-            startPos = joint.position;
             var terminate = false;
+            var startPointIdx = taxiway.spline.PercentToPointIndex(joint.percent);
+            startPos = joint.position;
 
             while (!terminate && node != null)
             {
@@ -110,8 +110,8 @@ namespace Traffic
                 }
                 else
                 {
-                    int thisPathJunctionIdx = junction.Item1;
-                    int nextPathJunctionIdx = junction.Item2;
+                    var thisPathJunctionIdx = junction.Item1;
+                    var nextPathJunctionIdx = junction.Item2;
                     var junctionNode = junction.Item3;
                     segment.spline = taxiway.spline;
                     segment.startPosition = startPos;
@@ -126,8 +126,8 @@ namespace Traffic
                     node = node.Next;
                 }
                 
-                AddSegmentPoints(ref points, out int triggerPointIndex, segment, aircraft);
-                triggerPoints.Add(taxiway, triggerPointIndex);
+                AddSegmentPoints(ref points, out var triggerPointIndex, segment, aircraft);
+                triggerPoints.Add(new Tuple<Taxiway, int>(taxiway, triggerPointIndex));
             }
             
             spline.SetPoints(points.ToArray());
@@ -139,9 +139,9 @@ namespace Traffic
 
             foreach (var pair in triggerPoints)
             {
-                var twy = pair.Key;
-                int pointIndex = pair.Value;
-                double percent = spline.GetPointPercent(pointIndex);
+                var twy = pair.Item1;
+                var pointIndex = pair.Item2;
+                var percent = spline.GetPointPercent(pointIndex);
                 var trigger = group.AddTrigger(percent, SplineTrigger.Type.Forward);
                 trigger.AddListener(_ => TaxiwayEnter?.Invoke(twy));
             }
@@ -153,12 +153,12 @@ namespace Traffic
         {
             var spl = segment.spline;
             var startPos = segment.startPosition;
-            int startPointIdx = segment.startPointIdx;
-            int endPointIdx = segment.endPointIdx;
+            var startPointIdx = segment.startPointIdx;
+            var endPointIdx = segment.endPointIdx;
             var joint = new SplineSample();
-            var firstPos = spl.GetPointPosition(startPointIdx + 1);
-            bool isForward = spl.GetPointPercent(endPointIdx) >
-                             spl.GetPointPercent(startPointIdx);
+            var isForward = startPointIdx < endPointIdx;
+            var delta = isForward ? 1 : -1;
+            var firstPos = spl.GetPointPosition(startPointIdx + delta);
 
             // Evaluate previous intersecting point
             spl.Evaluate(startPointIdx, ref joint);
@@ -169,7 +169,10 @@ namespace Traffic
                 AddPoint(points, startPos + aircraft.turnRadius * forward);
             }
 
-            for (int idx = startPointIdx + 1; idx < endPointIdx; ++idx)
+            var from = isForward ? startPointIdx + 1 : startPointIdx - 1;
+            bool CheckRange(int idx) => isForward ? idx < endPointIdx : idx > endPointIdx;
+
+            for (var idx = from; CheckRange(idx); idx += delta)
             {
                 AddPoint(points, spl.GetPointPosition(idx));
             }
@@ -197,13 +200,13 @@ namespace Traffic
             var thisSpline = thisPath.spline;
             var nextSpline = nextPath.spline;
             var distance = float.MaxValue;
-            int thisPointIdx = -1;
-            int nextPointIdx = -1;
+            var thisPointIdx = -1;
+            var nextPointIdx = -1;
             Node junction = null;
 
             foreach (var pair in thisSpline.GetJunctions())
             {
-                int pointIdx = pair.Key;
+                var pointIdx = pair.Key;
                 var node = thisSpline.GetNode(pointIdx);
 
                 foreach (var connection in pair.Value)
@@ -211,7 +214,7 @@ namespace Traffic
                     if (connection.spline != nextSpline)
                         continue;
 
-                    float dist = Vector3.Distance(origin, node.transform.position);
+                    var dist = Vector3.Distance(origin, node.transform.position);
 
                     if (dist < distance)
                     {
