@@ -68,8 +68,8 @@ namespace Misc
             
             textField.RegisterValueChangedCallback(e =>
             {
-                string rawValue = e.newValue.ToUpper();
-                string value = TaxiInstruction.k_TokenRegex.Replace(rawValue, eval => eval.Value.ToLower());
+                var rawValue = e.newValue.ToUpper();
+                var value = TaxiInstruction.tokenRegex.Replace(rawValue, eval => eval.Value.ToLower());
                 textField.SetValueWithoutNotify(value);
             });
             button.clicked += () =>

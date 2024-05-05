@@ -8,7 +8,7 @@ namespace ASR
 {
     public class SpeechRecognizer
     {
-        private static readonly string ModelID = "Jzuluaga/wav2vec2-large-960h-lv60-self-en-atc-uwb-atcc-and-atcosim";
+        private const string ModelID = "Jzuluaga/wav2vec2-large-960h-lv60-self-en-atc-uwb-atcc-and-atcosim";
 
         public event EventHandler<string> TranscriptReady;
         private readonly AudioDevice _inputDevice;

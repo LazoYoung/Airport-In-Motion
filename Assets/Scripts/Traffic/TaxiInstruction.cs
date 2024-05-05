@@ -10,8 +10,8 @@ namespace Traffic
 {
     public class TaxiInstruction
     {
-        public static readonly Regex k_TokenRegex = new("(via)|(short)|(cross)|(expect)", IgnoreCase);
-        public static readonly Regex k_RunwayRegex = new("(?<=^|\\s)(\\d{1,2}[LCR]?)(?=$|\\s)");
+        public static readonly Regex tokenRegex = new("(via)|(short)|(cross)|(expect)", IgnoreCase);
+        public static readonly Regex runwayRegex = new("(?<=^|\\s)(\\d{1,2}[LCR]?)(?=$|\\s)");
 
         public LinkedList<Taxiway> taxiways { get; private set; }
         public Queue<Runway> crossRunways { get; private set; }
@@ -27,7 +27,7 @@ namespace Traffic
             departRunway = GetDepartRunway(ref instruction);
             holdShort = GetHoldShort(ref instruction);
             crossRunways = GetCrossRunways(ref instruction);
-            string taxiInstruction = instruction.Trim();
+            var taxiInstruction = instruction.Trim();
             taxiways = GetTaxiways(taxiInstruction);
 
             Debug.Log("Taxi"
@@ -44,7 +44,7 @@ namespace Traffic
             var newDepartRunway = GetDepartRunway(ref instruction);
             var newHoldShort = GetHoldShort(ref instruction);
             var newCrossRunway = GetCrossRunways(ref instruction);
-            string taxiInstruction = instruction.Trim();
+            var taxiInstruction = instruction.Trim();
             var newTaxiways = GetTaxiways(taxiInstruction);
 
             if (newDepartRunway != null)
@@ -86,7 +86,7 @@ namespace Traffic
                 
             foreach (Match match in regex.Matches(instruction))
             {
-                string identifier = match.Result("$1");
+                var identifier = match.Result("$1");
                 Taxiway.Find(identifier, out var taxiway);
 
                 if (taxiway != null)
@@ -117,7 +117,7 @@ namespace Traffic
 
             foreach (Match match in regexRunways.Matches(matchCross.Result("$1")))
             {
-                string identifier = match.Value;
+                var identifier = match.Value;
                 Runway.Find(identifier, out var runway);
 
                 if (runway != null)
@@ -139,7 +139,7 @@ namespace Traffic
             
             if (matchShort.Success)
             {
-                string identifier = matchShort.Result("$1");
+                var identifier = matchShort.Result("$1");
                 instruction = regexShort.Replace(instruction, "");
                 Runway.Find(identifier, out var runway);
                 Taxiway.Find(identifier, out var taxiway);
@@ -166,7 +166,7 @@ namespace Traffic
 
             if (matchDepart.Success)
             {
-                string identifier = k_RunwayRegex.Match(matchDepart.Result("$&")).Result("$1");
+                var identifier = runwayRegex.Match(matchDepart.Result("$&")).Result("$1");
                 Runway.Find(identifier, out runway);
                 instruction = regexDepart.Replace(instruction, "");
             }
