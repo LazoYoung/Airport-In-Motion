@@ -9,7 +9,8 @@ namespace Traffic
 {
     internal record Segment
     {
-        internal SplineComputer spline { get; set; }
+        internal Path thisPath { get; set; }
+        [CanBeNull] internal Path nextPath { get; set; }
         internal Vector3 startPosition { get; set; }
         internal int startPointIdx { get; set; }
         internal int endPointIdx { get; set; }
@@ -80,48 +81,45 @@ namespace Traffic
 
             while (!terminate && node != null)
             {
-                taxiway = node.Value;
-                var segment = new Segment();
-                var junction = FindJunction(startPos, taxiway, instruction.holdShort);
-                Path nextPath;
+                var junction = FindJunction(startPos, node.Value, instruction.holdShort);
+                var segment = new Segment
+                {
+                    thisPath = node.Value,
+                    startPosition = startPos,
+                    startPointIdx = startPointIdx
+                };
 
                 if (junction != null)
                 {
                     // Proceed to holding point
                     terminate = true;
-                    nextPath = instruction.holdShort;
+                    segment.nextPath = instruction.holdShort;
                 }
                 else if (node.Next != null)
                 {
                     // Proceed to next taxiway
-                    junction = FindJunction(startPos, taxiway, node.Next.Value);
-                    nextPath = node.Next.Value;
+                    junction = FindJunction(startPos, segment.thisPath, node.Next.Value);
+                    segment.nextPath = node.Next.Value;
                 }
                 else
                 {
                     // Proceed to runway
                     var runway = instruction.departRunway;
-                    junction = FindJunction(startPos, taxiway, runway);
-                    nextPath = runway;
+                    junction = FindJunction(startPos, segment.thisPath, runway);
+                    segment.nextPath = runway;
                 }
-                
+
                 if (junction == null)
                 {
                     terminate = true;
-                    nextPath = null;
-                    segment.spline = taxiway.spline;
-                    segment.startPosition = startPos;
-                    segment.startPointIdx = startPointIdx;
-                    segment.endPointIdx = taxiway.spline.pointCount - 1;
+                    segment.nextPath = null;
+                    segment.endPointIdx = segment.thisPath.spline.pointCount - 1;
                 }
                 else
                 {
                     var thisPathJunctionIdx = junction.Item1;
                     var nextPathJunctionIdx = junction.Item2;
                     var junctionNode = junction.Item3;
-                    segment.spline = taxiway.spline;
-                    segment.startPosition = startPos;
-                    segment.startPointIdx = startPointIdx;
                     segment.endPointIdx = thisPathJunctionIdx;
                     startPos = junctionNode.transform.position;
                     startPointIdx = nextPathJunctionIdx;
@@ -134,9 +132,9 @@ namespace Traffic
                 
                 AddSegmentPoints(ref points, out var triggerPointIndex, segment, aircraft);
 
-                if (nextPath != null)
+                if (segment.nextPath != null)
                 {
-                    triggerPoints.Add(new Tuple<Path, int>(nextPath, triggerPointIndex));
+                    triggerPoints.Add(new Tuple<Path, int>(segment.nextPath, triggerPointIndex));
                 }
             }
             
@@ -178,7 +176,7 @@ namespace Traffic
 
         private void AddSegmentPoints(ref List<SplinePoint> points, out int triggerPointIndex, Segment segment, Aircraft aircraft)
         {
-            var spl = segment.spline;
+            var thisSpline = segment.thisPath.spline;
             var startPos = segment.startPosition;
             var startPointIdx = segment.startPointIdx;
             var endPointIdx = segment.endPointIdx;
@@ -187,17 +185,17 @@ namespace Traffic
 
             if (startPointIdx == endPointIdx)
             {
-                spl.Evaluate(endPointIdx, ref joint);
+                thisSpline.Evaluate(endPointIdx, ref joint);
                 forward = (joint.position - startPos).normalized;
             }
             else
             {
                 var isForward = startPointIdx < endPointIdx;
                 var delta = isForward ? 1 : -1;
-                var firstPos = spl.GetPointPosition(startPointIdx + delta);
+                var firstPos = thisSpline.GetPointPosition(startPointIdx + delta);
 
                 // Evaluate previous intersecting point
-                spl.Evaluate(startPointIdx, ref joint);
+                thisSpline.Evaluate(startPointIdx, ref joint);
                 forward = isForward ? joint.forward : -joint.forward;
 
                 if (Vector3.Distance(startPos, firstPos) > aircraft.turnRadius)
@@ -210,11 +208,11 @@ namespace Traffic
 
                 for (var idx = from; CheckRange(idx); idx += delta)
                 {
-                    AddPoint(points, spl.GetPointPosition(idx));
+                    AddPoint(points, thisSpline.GetPointPosition(idx));
                 }
                 
                 // Evaluate next intersecting or final point
-                spl.Evaluate(endPointIdx, ref joint);
+                thisSpline.Evaluate(endPointIdx, ref joint);
                 forward = isForward ? joint.forward : -joint.forward;
             }
             
