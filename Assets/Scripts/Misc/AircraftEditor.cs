@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using Dreamteck.Splines;
 using Traffic;
 using UnityEditor;
@@ -18,7 +17,6 @@ namespace Misc
             serializedObject.Update();
             
             var root = GetRootElement();
-            var taxiways = FindTaxiways();
             var box = new Box()
             {
                 style =
@@ -40,10 +38,8 @@ namespace Misc
                     paddingBottom = 20f
                 }
             };
-            var joinTwy = GetJoinTaxiwayAction(taxiways);
             var taxi = GetTaxiAction();
             box.Add(label);
-            box.Add(joinTwy);
             box.Add(taxi);
             root.Add(box);
             return root;
@@ -83,35 +79,6 @@ namespace Misc
             return action;
         }
 
-        private VisualElement GetJoinTaxiwayAction(SplineComputer[] taxiways)
-        {
-            var action = new VisualElement()
-            {
-                style = { flexDirection = FlexDirection.Row }
-            };
-            var button = new Button
-            {
-                text = "Join Taxiway",
-                style =
-                {
-                    flexGrow = 1f
-                }
-            };
-            var dropdown = GetTaxiwayDropdown(taxiways);
-            var aircraft = target as Aircraft;
-            
-            button.clicked += () =>
-            {
-                var taxiway = taxiways[dropdown.index];
-                var direction = Spline.Direction.Forward;
-                aircraft!.JoinTaxiway(taxiway, direction);
-            };
-            action.Add(dropdown);
-            action.Add(button);
-            action.SetEnabled(EditorApplication.isPlaying);
-            return action;
-        }
-
         private VisualElement GetRootElement()
         {
             var root = new VisualElement();
@@ -144,22 +111,6 @@ namespace Misc
                     width = 60f
                 }
             };
-        }
-
-        private SplineComputer[] FindTaxiways()
-        {
-            var splines = FindObjectsOfType<SplineComputer>();
-            var result = new List<SplineComputer>();
-            
-            foreach (var spline in splines)
-            {
-                if (!spline.CompareTag("Aircraft"))
-                {
-                    result.Add(spline);
-                }
-            }
-
-            return result.ToArray();
         }
     }
 }

@@ -215,8 +215,16 @@ namespace Traffic
                 thisSpline.Evaluate(endPointIdx, ref joint);
                 forward = isForward ? joint.forward : -joint.forward;
             }
-            
+
+            var nextPath = segment.nextPath;
+            var margin = nextPath != null ? nextPath.GetSafetyMargin(aircraft) : 0f;
             triggerPointIndex = points.Count;
+            
+            if (margin > aircraft.turnRadius)
+            {
+                AddPoint(points, joint.position - margin * forward);
+            }
+            
             AddPoint(points, joint.position - aircraft.turnRadius * forward);
             AddPoint(points, joint.position);
         }

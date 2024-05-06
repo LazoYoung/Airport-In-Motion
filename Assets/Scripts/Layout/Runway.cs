@@ -1,31 +1,21 @@
-﻿using System.Collections.Generic;
-using Dreamteck.Splines;
+﻿using UnityEngine;
 
 namespace Layout
 {
     public class Runway : Path
     {
-        private static readonly Dictionary<string, Runway> Cached = new();
+        [SerializeField]
+        private float width = 200f;
 
-        public static void Find(string identifier, out Runway runway)
+        protected override float GetWidth()
         {
-            Cached.TryGetValue(identifier, out runway);
+            return width;
         }
-        
-        private void OnEnable()
+
+        protected override void OnEnable()
         {
+            base.OnEnable();
             tag = "Runway";
-            spline = GetComponent<SplineComputer>();
-            
-            if (string.IsNullOrEmpty(identifier))
-                identifier = name;
-            
-            Cached.Add(identifier, this);
-        }
-
-        private void OnDisable()
-        {
-            Cached.Remove(identifier);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using JetBrains.Annotations;
@@ -8,6 +9,7 @@ using static System.Text.RegularExpressions.RegexOptions;
 
 namespace Traffic
 {
+    [Serializable]
     public class TaxiInstruction
     {
         public static readonly Regex tokenRegex = new("(via)|(short)|(cross)|(expect)", IgnoreCase);
@@ -17,11 +19,12 @@ namespace Traffic
         public Queue<Runway> crossRunways { get; private set; }
         public Runway departRunway { get; private set; }
         public Path holdShort { get; private set; }
+        public bool active { get; private set; }
 
         // Expected format: [(RWY) via] {(TWY...)} [cross (RWY...)] [short (TWY/RWY)]
         // Example 1: 1R via B M short 1L
         // Example 2: 28R via A F cross 1L 1R short 28L
-        public TaxiInstruction(string instruction)
+        public void Init(string instruction)
         {
             TrimLeadingZeros(ref instruction);
             departRunway = GetDepartRunway(ref instruction);
@@ -29,6 +32,7 @@ namespace Traffic
             crossRunways = GetCrossRunways(ref instruction);
             var taxiInstruction = instruction.Trim();
             taxiways = GetTaxiways(taxiInstruction);
+            active = true;
 
             Debug.Log("Taxi"
                       + $"{(departRunway == null ? "" : $" to runway {departRunway.identifier}")}"
@@ -66,12 +70,19 @@ namespace Traffic
                 taxiways = newTaxiways;
             }
 
+            active = true;
+
             Debug.Log("Amend taxi"
                       + $"{(departRunway == null ? "" : $" to runway {departRunway.identifier}")}"
                       + $"{(taxiways.Count > 0 ? " via " + string.Join(", ", taxiways.Select(t => t.identifier)) : "")}"
                       + $"{(crossRunways.Count > 0 ? " cross " + string.Join(", ", crossRunways.Select(r => r.identifier)) : "")}"
                       + $"{(holdShort != null ? $" hold {holdShort.identifier}" : "")}"
             );
+        }
+
+        public void Reset()
+        {
+            active = false;
         }
 
         private LinkedList<Taxiway> GetTaxiways(string instruction)
@@ -87,9 +98,8 @@ namespace Traffic
             foreach (Match match in regex.Matches(instruction))
             {
                 var identifier = match.Result("$1");
-                Taxiway.Find(identifier, out var taxiway);
 
-                if (taxiway != null)
+                if (Path.Find(identifier, out Taxiway taxiway))
                 {
                     list.AddLast(taxiway);
                 }
@@ -118,9 +128,8 @@ namespace Traffic
             foreach (Match match in regexRunways.Matches(matchCross.Result("$1")))
             {
                 var identifier = match.Value;
-                Runway.Find(identifier, out var runway);
 
-                if (runway != null)
+                if (Path.Find(identifier, out Runway runway))
                 {
                     queue.Enqueue(runway);
                 }
@@ -141,14 +150,12 @@ namespace Traffic
             {
                 var identifier = matchShort.Result("$1");
                 instruction = regexShort.Replace(instruction, "");
-                Runway.Find(identifier, out var runway);
-                Taxiway.Find(identifier, out var taxiway);
 
-                if (runway != null)
+                if (Path.Find(identifier, out Runway runway))
                 {
                     path = runway;
                 }
-                else if (taxiway != null)
+                else if (Path.Find(identifier, out Taxiway taxiway))
                 {
                     path = taxiway;
                 }
@@ -157,7 +164,6 @@ namespace Traffic
             return path;
         }
 
-        [CanBeNull]
         private Runway GetDepartRunway(ref string instruction)
         {
             var regexDepart = new Regex("(\\w+ via)|(expect \\w+)", IgnoreCase);
@@ -172,9 +178,9 @@ namespace Traffic
                 return null;
             
             var identifier = runwayMatch.Result("$1");
-            Runway.Find(identifier, out var runway);
             instruction = regexDepart.Replace(instruction, "");
-            return runway;
+
+            return Path.Find(identifier, out Runway runway) ? runway : null;
         }
 
         private void TrimLeadingZeros(ref string text)

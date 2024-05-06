@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using Dreamteck.Splines;
+﻿using Dreamteck.Splines;
 using UnityEngine;
 
 namespace Layout
@@ -7,27 +6,18 @@ namespace Layout
     [RequireComponent(typeof(SplineComputer))]
     public class Taxiway : Path
     {
-        private static readonly Dictionary<string, Taxiway> Cached = new();
-        
-        public static void Find(string identifier, out Taxiway taxiway)
+        [SerializeField]
+        private float width = 50f;
+
+        protected override float GetWidth()
         {
-            Cached.TryGetValue(identifier, out taxiway);
-        }
-        
-        private void OnEnable()
-        {
-            tag = "Taxiway";
-            spline = GetComponent<SplineComputer>();
-            
-            if (string.IsNullOrEmpty(identifier))
-                identifier = name;
-            
-            Cached.Add(identifier, this);
+            return width;
         }
 
-        private void OnDisable()
+        protected override void OnEnable()
         {
-            Cached.Remove(identifier);
+            base.OnEnable();
+            tag = "Taxiway";
         }
     }
 }

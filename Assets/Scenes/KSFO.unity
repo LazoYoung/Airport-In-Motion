@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 3954.5698, g: 3039.2073, b: 2464.387, a: 1}
+  m_IndirectSpecularColor: {r: 3948.4302, g: 3027.3909, b: 2442.2542, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -149,7 +149,7 @@ Transform:
   m_GameObject: {fileID: 229404480}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.9993584, z: -0, w: -0.035816647}
-  m_LocalPosition: {x: -898.8313, y: 0, z: 681.70325}
+  m_LocalPosition: {x: -413.6, y: 0, z: 534.2}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -170,9 +170,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   taxiSpeed: 10
   turnRadius: 30
+  length: 60
   pathfinder: {fileID: 0}
-  interceptor: {fileID: 0}
-  taxiDirection: 0
 --- !u!1001 &275733240
 PrefabInstance:
   m_ObjectHideFlags: 0
