@@ -162,7 +162,8 @@ namespace Traffic
                 if (seg.nextPath != null)
                 {
                     var percent = seg.thisPath.spline.GetPointPercent(seg.endPointIdx);
-                    AddTrigger(enterGroup, seg.nextPath, percent);
+                    var trigger = CreateTrigger(enterGroup, percent);
+                    trigger.AddListener(_ => EnterPath?.Invoke(seg.nextPath));
                 }
 
                 var spl = seg.thisPath.spline;
@@ -179,7 +180,8 @@ namespace Traffic
                     // todo: store directional info on every Segment
                     var margin = seg.nextPath.GetSafetyMargin(aircraft);
                     double percent = spl.Travel(to, margin, Backward);
-                    AddTrigger(crossGroup, seg.nextPath, percent);
+                    var trigger = CreateTrigger(crossGroup, percent);
+                    trigger.AddListener(_ => CrossPath?.Invoke(seg.nextPath));
                     return;
                 }
                 
@@ -196,17 +198,18 @@ namespace Traffic
                         var margin = path.GetSafetyMargin(aircraft);
                         var start = spl.GetPointPercent(pointIdx);
                         double percent = spl.Travel(start, margin, from < to ? Backward : Forward);
-                        AddTrigger(crossGroup, path, percent);
+                        var trigger = CreateTrigger(crossGroup, percent);
+                        trigger.AddListener(_ => CrossPath?.Invoke(path));
                     }
                 }
             }
         }
 
-        private void AddTrigger(TriggerGroup group, Path path, double percent)
+        private SplineTrigger CreateTrigger(TriggerGroup group, double percent)
         {
-            var enterTrigger = group.AddTrigger(percent, SplineTrigger.Type.Forward);
-            enterTrigger.workOnce = true;
-            enterTrigger.AddListener(_ => EnterPath?.Invoke(path));
+            var trigger = group.AddTrigger(percent, SplineTrigger.Type.Forward);
+            trigger.workOnce = true;
+            return trigger;
         }
 
         private void AddSegmentPoints(ref List<SplinePoint> points, out int triggerPointIndex, Segment segment, Aircraft aircraft)
