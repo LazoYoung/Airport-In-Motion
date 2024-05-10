@@ -4,6 +4,7 @@ using Dreamteck.Splines;
 using JetBrains.Annotations;
 using Layout;
 using UnityEngine;
+using static Dreamteck.Splines.Spline.Direction;
 
 namespace Traffic
 {
@@ -18,9 +19,9 @@ namespace Traffic
 
     public class Pathfinder : SplineFollower
     {
-        public event Action TaxiHold;
-        
         public event Action<Path> EnterPath;
+
+        public event Action<Path> CrossPath;
         
         protected override void Start()
         {
@@ -31,10 +32,9 @@ namespace Traffic
             spline.sampleRate = 20;
             spline.type = Spline.Type.BSpline;
             spline.space = SplineComputer.Space.World;
-            direction = Spline.Direction.Forward;
+            direction = Forward;
             wrapMode = Wrap.Default;
             followMode = FollowMode.Uniform;
-            onEndReached += OnEndReached;
         }
 
         protected override void OnDisable()
@@ -42,7 +42,6 @@ namespace Traffic
             base.OnDisable();
 
             Destroy(spline);
-            onEndReached -= OnEndReached;
         }
 
         public void Taxi(Aircraft aircraft, TaxiInstruction instruction)
@@ -58,6 +57,7 @@ namespace Traffic
         private bool CreateTaxiPath(Aircraft aircraft, TaxiInstruction instruction)
         {
             var points = new List<SplinePoint>();
+            var segments = new List<Segment>();
             var triggerPoints = new List<Tuple<Path, int>>();
             
             if (instruction.taxiways.Count == 0)
@@ -81,49 +81,37 @@ namespace Traffic
 
             while (!terminate && node != null)
             {
-                var junction = FindJunction(startPos, node.Value, instruction.holdShort);
                 var segment = new Segment
                 {
                     thisPath = node.Value,
                     startPosition = startPos,
                     startPointIdx = startPointIdx
                 };
+                segments.Add(segment);
 
-                if (junction != null)
-                {
-                    // Proceed to holding point
-                    terminate = true;
-                    segment.nextPath = instruction.holdShort;
-                }
-                else if (node.Next != null)
+                if (node.Next != null && FindJunction(startPos, segment.thisPath, node.Next.Value, out var junction))
                 {
                     // Proceed to next taxiway
-                    junction = FindJunction(startPos, segment.thisPath, node.Next.Value);
                     segment.nextPath = node.Next.Value;
                 }
-                else
+                else if (FindJunction(startPos, segment.thisPath, instruction.departRunway, out junction))
                 {
                     // Proceed to runway
-                    var runway = instruction.departRunway;
-                    junction = FindJunction(startPos, segment.thisPath, runway);
-                    segment.nextPath = runway;
-                }
-
-                if (junction == null)
+                    segment.nextPath = instruction.departRunway;
+                } 
+                else
                 {
                     terminate = true;
                     segment.nextPath = null;
                     segment.endPointIdx = segment.thisPath.spline.pointCount - 1;
                 }
-                else
-                {
-                    var thisPathJunctionIdx = junction.Item1;
-                    var nextPathJunctionIdx = junction.Item2;
-                    var junctionNode = junction.Item3;
-                    segment.endPointIdx = thisPathJunctionIdx;
-                    startPos = junctionNode.transform.position;
-                    startPointIdx = nextPathJunctionIdx;
-                }
+                
+                var thisPathJunctionIdx = junction.Item1;
+                var nextPathJunctionIdx = junction.Item2;
+                var junctionNode = junction.Item3;
+                segment.endPointIdx = thisPathJunctionIdx;
+                startPos = junctionNode.transform.position;
+                startPointIdx = nextPathJunctionIdx;
                 
                 if (!terminate)
                 {
@@ -142,36 +130,83 @@ namespace Traffic
             RemoveTriggers();
             RebuildImmediate();
 
-            var group = spline.AddTriggerGroup();
-            group.name = "enter";
-
-            foreach (var pair in triggerPoints)
-            {
-                var path = pair.Item1;
-                var pointIndex = pair.Item2;
-                var percent = spline.GetPointPercent(pointIndex);
-                var trigger = group.AddTrigger(percent, SplineTrigger.Type.Forward);
-                trigger.workOnce = true;
-                trigger.AddListener(_ =>
-                {
-                    EnterPath?.Invoke(path);
-                });
-            }
+            // var enterGroup = spline.AddTriggerGroup();
+            // enterGroup.name = "enter";
+            //
+            // foreach (var pair in triggerPoints)
+            // {
+            //     var path = pair.Item1;
+            //     var pointIndex = pair.Item2;
+            //     var percent = spline.GetPointPercent(pointIndex);
+            //     var trigger = enterGroup.AddTrigger(percent, SplineTrigger.Type.Forward);
+            //     trigger.workOnce = true;
+            //     trigger.AddListener(_ =>
+            //     {
+            //         EnterPath?.Invoke(path);
+            //     });
+            // }
+            AddTriggers(segments, aircraft);
 
             return true;
         }
-
-        private void RemoveTriggers()
+        
+        private void AddTriggers(List<Segment> segments, Aircraft aircraft)
         {
-            foreach (var group in spline.triggerGroups)
+            var enterGroup = spline.AddTriggerGroup();
+            var crossGroup = spline.AddTriggerGroup();
+            enterGroup.name = "enter";
+            crossGroup.name = "cross";
+
+            foreach (var seg in segments)
             {
-                for (var idx = 0; idx < group.triggers.Length; ++idx)
+                if (seg.nextPath != null)
                 {
-                    group.RemoveTrigger(idx);
+                    var percent = seg.thisPath.spline.GetPointPercent(seg.endPointIdx);
+                    AddTrigger(enterGroup, seg.nextPath, percent);
+                }
+
+                var spl = seg.thisPath.spline;
+                var from = spl.GetPointPercent(seg.startPointIdx);
+                var to = spl.GetPointPercent(seg.endPointIdx);
+                
+                if (seg.startPointIdx == seg.endPointIdx)
+                {
+                    if (seg.nextPath == null)
+                        return;
+                    
+                    // It's probably safe to assume the segment is not reversed
+                    // because single-point-segment happens to be the first segment.
+                    // todo: store directional info on every Segment
+                    var margin = seg.nextPath.GetSafetyMargin(aircraft);
+                    double percent = spl.Travel(to, margin, Backward);
+                    AddTrigger(crossGroup, seg.nextPath, percent);
+                    return;
+                }
+                
+                foreach (var pair in spl.GetNodes(Math.Min(from, to), Math.Max(from, to)))
+                {
+                    var pointIdx = pair.Key;
+                    var node = pair.Value;
+
+                    foreach (var conn in node.GetConnections())
+                    {
+                        if (conn.spline == spl || !Path.Find(conn.spline.name, out Path path))
+                            return;
+
+                        var margin = path.GetSafetyMargin(aircraft);
+                        var start = spl.GetPointPercent(pointIdx);
+                        double percent = spl.Travel(start, margin, from < to ? Backward : Forward);
+                        AddTrigger(crossGroup, path, percent);
+                    }
                 }
             }
+        }
 
-            spline.triggerGroups = Array.Empty<TriggerGroup>();
+        private void AddTrigger(TriggerGroup group, Path path, double percent)
+        {
+            var enterTrigger = group.AddTrigger(percent, SplineTrigger.Type.Forward);
+            enterTrigger.workOnce = true;
+            enterTrigger.AddListener(_ => EnterPath?.Invoke(path));
         }
 
         private void AddSegmentPoints(ref List<SplinePoint> points, out int triggerPointIndex, Segment segment, Aircraft aircraft)
@@ -230,23 +265,26 @@ namespace Traffic
         }
 
         /**
-         * If two paths intersect, the following items are returned:   <br/>
-         * 1. Index of the intersecting point for thisPath             <br/>
-         * 2. Index of the intersecting point for nextPath             <br/>
-         * 3. The node connecting two paths                            <br/>
+         * If two paths do intersect,
+         * the function returns true with the following items in Tuple:   <br/>
+         * 1. Index of the intersecting point for thisPath                <br/>
+         * 2. Index of the intersecting point for nextPath                <br/>
+         * 3. The node connecting two paths                               <br/>
          */
-        [CanBeNull]
-        private Tuple<int, int, Node> FindJunction(Vector3 origin, Path thisPath, Path nextPath)
+        private bool FindJunction(Vector3 origin, Path thisPath, Path nextPath, out Tuple<int, int, Node> junction)
         {
             if (thisPath == null || nextPath == null)
-                return null;
+            {
+                junction = default;
+                return false;
+            }
             
             var thisSpline = thisPath.spline;
             var nextSpline = nextPath.spline;
             var distance = float.MaxValue;
             var thisPointIdx = -1;
             var nextPointIdx = -1;
-            Node junction = null;
+            Node junctionNode = null;
 
             foreach (var pair in thisSpline.GetJunctions())
             {
@@ -265,27 +303,39 @@ namespace Traffic
                         distance = dist;
                         thisPointIdx = pointIdx;
                         nextPointIdx = connection.pointIndex;
-                        junction = node;
+                        junctionNode = node;
                     }
 
                     break;
                 }
             }
 
-            if (junction == null)
-                return null;
+            if (junctionNode == null)
+            {
+                junction = default;
+                return false;
+            }
 
-            return new Tuple<int, int, Node>(thisPointIdx, nextPointIdx, junction);
+            junction = new Tuple<int, int, Node>(thisPointIdx, nextPointIdx, junctionNode);
+            return true;
+        }
+        
+        private void RemoveTriggers()
+        {
+            foreach (var group in spline.triggerGroups)
+            {
+                for (var idx = 0; idx < group.triggers.Length; ++idx)
+                {
+                    group.RemoveTrigger(idx);
+                }
+            }
+
+            spline.triggerGroups = Array.Empty<TriggerGroup>();
         }
 
         private void AddPoint(List<SplinePoint> list, Vector3 element)
         {
             list.Add(new SplinePoint(element));
-        }
-
-        private void OnEndReached(double d)
-        {
-            TaxiHold?.Invoke();
         }
     }
 }

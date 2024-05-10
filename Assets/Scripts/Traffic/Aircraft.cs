@@ -31,25 +31,6 @@ namespace Traffic
             pathfinder.Taxi(this, taxiInstruction);
         }
 
-        private void OnTaxiHold()
-        {
-            Debug.Log("Holding position");
-        }
-        
-        private void OnEnterPath(Path path)
-        {
-            Debug.Log($"Entering {path.identifier}");
-
-            var linkedList = taxiInstruction.taxiways;
-            var node = linkedList.First;
-
-            while (node != null)
-            {
-                node = path.Equals(node.Value) ? null : node.Next;
-                linkedList.RemoveFirst();
-            }
-        }
-
         private void OnEnable()
         {
             tag = "Aircraft";
@@ -57,8 +38,6 @@ namespace Traffic
             pathfinder = gameObject.AddComponent<Pathfinder>();
             pathfinder.hideFlags = HideFlags.HideAndDontSave;
             pathfinder.follow = false;
-            pathfinder.TaxiHold += OnTaxiHold;
-            pathfinder.EnterPath += OnEnterPath;
         }
         
         private void OnDisable()

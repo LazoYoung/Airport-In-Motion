@@ -14,11 +14,11 @@ namespace Layout
         [HideInInspector] [SerializeField]
         public SplineComputer spline;
 
-        private static readonly Dictionary<string, Path> Cached = new();
+        private static readonly Dictionary<string, Path> PathCache = new();
 
         public static bool Find<T>(string identifier, out T result)
         {
-            if (Cached.TryGetValue(identifier, out var path))
+            if (PathCache.TryGetValue(identifier, out var path))
             {
                 if (path is T value)
                 {
@@ -48,26 +48,26 @@ namespace Layout
         
         protected virtual void OnEnable()
         {
-            spline = GetComponent<SplineComputer>();
-
             if (string.IsNullOrEmpty(identifier))
             {
                 identifier = name;
             }
             
-            if (Cached.ContainsKey(identifier))
+            if (PathCache.ContainsKey(identifier))
             {
                 Debug.LogError($"Duplicate path identifier: {identifier}");
                 enabled = false;
                 return;
             }
             
-            Cached.Add(identifier, this);
+            spline = GetComponent<SplineComputer>();
+            spline.name = identifier;
+            PathCache.Add(identifier, this);
         }
 
         protected virtual void OnDisable()
         {
-            Cached.Remove(identifier);
+            PathCache.Remove(identifier);
         }
     }
 }
