@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using Layout;
+using UnityEngine;
 
 namespace Traffic
 {
@@ -30,6 +31,16 @@ namespace Traffic
             pathfinder.Taxi(this, taxiInstruction);
         }
 
+        private void OnEnterPath(Path path)
+        {
+            Debug.Log($"Path enter: {path.identifier}");
+        }
+
+        private void OnCrossPath(Path path)
+        {
+            Debug.Log($"Path cross: {path.identifier}");
+        }
+
         private void OnEnable()
         {
             tag = "Aircraft";
@@ -37,10 +48,14 @@ namespace Traffic
             pathfinder = gameObject.AddComponent<Pathfinder>();
             pathfinder.hideFlags = HideFlags.HideAndDontSave;
             pathfinder.follow = false;
+            pathfinder.EnterPath += OnEnterPath;
+            pathfinder.CrossPath += OnCrossPath;
         }
         
         private void OnDisable()
         {
+            pathfinder.EnterPath -= OnEnterPath;
+            pathfinder.CrossPath -= OnCrossPath;
             Destroy(pathfinder);
         }
 

@@ -10,11 +10,13 @@ namespace Traffic
 {
     internal record Segment
     {
+        [CanBeNull] internal Path prevPath { get; set; }
         internal Path thisPath { get; set; }
         [CanBeNull] internal Path nextPath { get; set; }
         internal Vector3 startPosition { get; set; }
         internal int startPointIdx { get; set; }
         internal int endPointIdx { get; set; }
+        internal bool isForward { get; set; }
     }
 
     public class Pathfinder : SplineFollower
@@ -28,7 +30,6 @@ namespace Traffic
             base.Start();
 
             spline = gameObject.AddComponent<SplineComputer>();
-            spline.hideFlags = HideFlags.HideAndDontSave;
             spline.sampleRate = 20;
             spline.type = Spline.Type.BSpline;
             spline.space = SplineComputer.Space.World;
@@ -58,7 +59,6 @@ namespace Traffic
         {
             var points = new List<SplinePoint>();
             var segments = new List<Segment>();
-            var triggerPoints = new List<Tuple<Path, int>>();
             
             if (instruction.taxiways.Count == 0)
                 return false;
@@ -71,23 +71,22 @@ namespace Traffic
             var taxiway = node.Value;
             
             taxiway.spline.Project(turnPos, ref joint);
-            AddPoint(points, startPos);
-            AddPoint(points, turnPos);
-            AddPoint(points, joint.position);
+            AddSplinePoint(points, startPos);
+            AddSplinePoint(points, turnPos);
+            AddSplinePoint(points, joint.position);
 
             var terminate = false;
-            var startPointIdx = taxiway.spline.PercentToPointIndex(joint.percent);
+            var startPointIdx = -1;
             startPos = joint.position;
 
-            while (!terminate && node != null)
+            while (node != null)
             {
                 var segment = new Segment
                 {
+                    prevPath = node.Previous?.Value,
                     thisPath = node.Value,
-                    startPosition = startPos,
-                    startPointIdx = startPointIdx
+                    startPosition = startPos
                 };
-                segments.Add(segment);
 
                 if (node.Next != null && FindJunction(startPos, segment.thisPath, node.Next.Value, out var junction))
                 {
@@ -105,70 +104,68 @@ namespace Traffic
                     segment.nextPath = null;
                     segment.endPointIdx = segment.thisPath.spline.pointCount - 1;
                 }
+
+                if (startPointIdx < 0)
+                {
+                    var spl = segment.thisPath.spline;
+                    spl.Project(startPos, ref joint);
+                    var isForward = spl.GetPointPercent(junction.Item1) > joint.percent;
+                    
+                    int start = isForward ? 0 : spl.pointCount - 1;
+                    int delta = isForward ? 1 : -1;
+                    bool CheckRange(int idx) => (idx >= 0 && idx < spl.pointCount);
+                    bool Matches(double percent) => isForward ? (percent >= joint.percent) : (percent <= joint.percent);
+                    
+                    for (var idx = start; CheckRange(idx); idx += delta)
+                    {
+                        if (Matches(spl.GetPointPercent(idx)))
+                        {
+                            startPointIdx = idx;
+                            break;
+                        }
+                    }
+                }
                 
                 var thisPathJunctionIdx = junction.Item1;
                 var nextPathJunctionIdx = junction.Item2;
                 var junctionNode = junction.Item3;
+                segment.startPointIdx = startPointIdx;
                 segment.endPointIdx = thisPathJunctionIdx;
+                segment.isForward = segment.endPointIdx >= segment.startPointIdx;
                 startPos = junctionNode.transform.position;
                 startPointIdx = nextPathJunctionIdx;
-                
-                if (!terminate)
-                {
-                    node = node.Next;
-                }
-                
-                AddSegmentPoints(ref points, out var triggerPointIndex, segment, aircraft);
+                node = terminate ? null : node.Next;
 
-                if (segment.nextPath != null)
-                {
-                    triggerPoints.Add(new Tuple<Path, int>(segment.nextPath, triggerPointIndex));
-                }
+                segments.Add(segment);
+                AddSplinePoints(points, segment, aircraft);
             }
             
             spline.SetPoints(points.ToArray());
+            spline.RebuildImmediate();
             RemoveTriggers();
-            RebuildImmediate();
-
-            // var enterGroup = spline.AddTriggerGroup();
-            // enterGroup.name = "enter";
-            //
-            // foreach (var pair in triggerPoints)
-            // {
-            //     var path = pair.Item1;
-            //     var pointIndex = pair.Item2;
-            //     var percent = spline.GetPointPercent(pointIndex);
-            //     var trigger = enterGroup.AddTrigger(percent, SplineTrigger.Type.Forward);
-            //     trigger.workOnce = true;
-            //     trigger.AddListener(_ =>
-            //     {
-            //         EnterPath?.Invoke(path);
-            //     });
-            // }
             AddTriggers(segments, aircraft);
-
+            
             return true;
         }
         
         private void AddTriggers(List<Segment> segments, Aircraft aircraft)
         {
-            var enterGroup = spline.AddTriggerGroup();
-            var crossGroup = spline.AddTriggerGroup();
-            enterGroup.name = "enter";
-            crossGroup.name = "cross";
-
+            var sample = new SplineSample();
+            var group = spline.AddTriggerGroup();
+        
             foreach (var seg in segments)
             {
                 if (seg.nextPath != null)
                 {
-                    var percent = seg.thisPath.spline.GetPointPercent(seg.endPointIdx);
-                    var trigger = CreateTrigger(enterGroup, percent);
+                    var pos = seg.thisPath.spline.GetPointPosition(seg.endPointIdx);
+                    spline.Project(pos, ref sample);
+                    var trigger = CreateTrigger(group, sample.percent);
                     trigger.AddListener(_ => EnterPath?.Invoke(seg.nextPath));
                 }
-
+        
                 var spl = seg.thisPath.spline;
-                var from = spl.GetPointPercent(seg.startPointIdx);
-                var to = spl.GetPointPercent(seg.endPointIdx);
+                var from = spl.GetPointPercent(seg.isForward ? seg.startPointIdx : seg.endPointIdx);
+                var to = spl.GetPointPercent(seg.isForward ? seg.endPointIdx : seg.startPointIdx);
                 
                 if (seg.startPointIdx == seg.endPointIdx)
                 {
@@ -177,29 +174,37 @@ namespace Traffic
                     
                     // It's probably safe to assume the segment is not reversed
                     // because single-point-segment happens to be the first segment.
-                    // todo: store directional info on every Segment
                     var margin = seg.nextPath.GetSafetyMargin(aircraft);
                     double percent = spl.Travel(to, margin, Backward);
-                    var trigger = CreateTrigger(crossGroup, percent);
+                    var pos = spl.EvaluatePosition(percent);
+                    spline.Project(pos, ref sample);
+                    var trigger = CreateTrigger(group, sample.percent);
                     trigger.AddListener(_ => CrossPath?.Invoke(seg.nextPath));
                     return;
                 }
                 
-                foreach (var pair in spl.GetNodes(Math.Min(from, to), Math.Max(from, to)))
+                foreach (var pair in spl.GetJunctions(Math.Min(from, to), Math.Max(from, to)))
                 {
                     var pointIdx = pair.Key;
-                    var node = pair.Value;
-
-                    foreach (var conn in node.GetConnections())
+        
+                    foreach (var conn in pair.Value)
                     {
-                        if (conn.spline == spl || !Path.Find(conn.spline.name, out Path path))
-                            return;
+                        var prevSpline = seg.prevPath?.spline;
+                    
+                        if (conn.spline == spl || prevSpline && conn.spline == prevSpline)
+                            continue;
 
-                        var margin = path.GetSafetyMargin(aircraft);
-                        var start = spl.GetPointPercent(pointIdx);
-                        double percent = spl.Travel(start, margin, from < to ? Backward : Forward);
-                        var trigger = CreateTrigger(crossGroup, percent);
-                        trigger.AddListener(_ => CrossPath?.Invoke(path));
+                        if (Path.Find(conn.spline.name, out Path path))
+                        {
+                            var margin = path.GetSafetyMargin(aircraft);
+                            var start = spl.GetPointPercent(pointIdx);
+                            var backward = seg.isForward ? Backward : Forward;
+                            double percent = spl.Travel(start, margin, backward);
+                            var pos = spl.EvaluatePosition(percent);
+                            spline.Project(pos, ref sample);
+                            var trigger = CreateTrigger(group, sample.percent);
+                            trigger.AddListener(_ => CrossPath?.Invoke(path));   
+                        }
                     }
                 }
             }
@@ -212,7 +217,7 @@ namespace Traffic
             return trigger;
         }
 
-        private void AddSegmentPoints(ref List<SplinePoint> points, out int triggerPointIndex, Segment segment, Aircraft aircraft)
+        private void AddSplinePoints(List<SplinePoint> points, Segment segment, Aircraft aircraft)
         {
             var thisSpline = segment.thisPath.spline;
             var startPos = segment.startPosition;
@@ -238,7 +243,7 @@ namespace Traffic
 
                 if (Vector3.Distance(startPos, firstPos) > aircraft.turnRadius)
                 {
-                    AddPoint(points, startPos + aircraft.turnRadius * forward);
+                    AddSplinePoint(points, startPos + aircraft.turnRadius * forward);
                 }
 
                 var from = isForward ? startPointIdx + 1 : startPointIdx - 1;
@@ -246,7 +251,7 @@ namespace Traffic
 
                 for (var idx = from; CheckRange(idx); idx += delta)
                 {
-                    AddPoint(points, thisSpline.GetPointPosition(idx));
+                    AddSplinePoint(points, thisSpline.GetPointPosition(idx));
                 }
                 
                 // Evaluate next intersecting or final point
@@ -256,15 +261,19 @@ namespace Traffic
 
             var nextPath = segment.nextPath;
             var margin = nextPath != null ? nextPath.GetSafetyMargin(aircraft) : 0f;
-            triggerPointIndex = points.Count;
             
             if (margin > aircraft.turnRadius)
             {
-                AddPoint(points, joint.position - margin * forward);
+                AddSplinePoint(points, joint.position - margin * forward);
             }
             
-            AddPoint(points, joint.position - aircraft.turnRadius * forward);
-            AddPoint(points, joint.position);
+            AddSplinePoint(points, joint.position - aircraft.turnRadius * forward);
+            AddSplinePoint(points, joint.position);
+        }
+        
+        private void AddSplinePoint(List<SplinePoint> list, Vector3 element)
+        {
+            list.Add(new SplinePoint(element));
         }
 
         /**
@@ -334,11 +343,6 @@ namespace Traffic
             }
 
             spline.triggerGroups = Array.Empty<TriggerGroup>();
-        }
-
-        private void AddPoint(List<SplinePoint> list, Vector3 element)
-        {
-            list.Add(new SplinePoint(element));
         }
     }
 }
