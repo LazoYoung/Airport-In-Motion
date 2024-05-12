@@ -38,7 +38,7 @@ namespace Layout
 
         public float GetSafetyMargin(Aircraft aircraft)
         {
-            return (GetWidth() + aircraft.length) / 2f;
+            return (GetWidth() + aircraft.GetLength()) / 2f;
         }
 
         protected virtual float GetWidth()

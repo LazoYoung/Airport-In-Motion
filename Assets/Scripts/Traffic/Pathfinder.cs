@@ -45,17 +45,7 @@ namespace Traffic
             Destroy(spline);
         }
 
-        public void Taxi(Aircraft aircraft, TaxiInstruction instruction)
-        {
-            if (CreateTaxiPath(aircraft, instruction))
-            {
-                SetPercent(0);
-                useTriggers = true;
-                follow = true;
-            }
-        }
-
-        private bool CreateTaxiPath(Aircraft aircraft, TaxiInstruction instruction)
+        public bool CreateTaxiPath(Aircraft aircraft, TaxiInstruction instruction)
         {
             var points = new List<SplinePoint>();
             var segments = new List<Segment>();
@@ -65,7 +55,7 @@ namespace Traffic
             
             var tf = aircraft.transform;
             var startPos = tf.position;
-            var turnPos = startPos + aircraft.turnRadius * tf.forward;
+            var turnPos = startPos + aircraft.GetTurnRadius() * tf.forward;
             var joint = new SplineSample();
             var node = instruction.taxiways.First;
             var taxiway = node.Value;
@@ -75,7 +65,6 @@ namespace Traffic
             AddSplinePoint(points, turnPos);
             AddSplinePoint(points, joint.position);
 
-            var terminate = false;
             var startPointIdx = -1;
             startPos = joint.position;
 
@@ -100,9 +89,13 @@ namespace Traffic
                 } 
                 else
                 {
-                    terminate = true;
                     segment.nextPath = null;
+                    segment.startPointIdx = startPointIdx;
                     segment.endPointIdx = segment.thisPath.spline.pointCount - 1;
+                    segment.isForward = segment.endPointIdx >= segment.startPointIdx;
+                    segments.Add(segment);
+                    AddSplinePoints(points, segment, aircraft);
+                    break;
                 }
 
                 if (startPointIdx < 0)
@@ -134,14 +127,16 @@ namespace Traffic
                 segment.isForward = segment.endPointIdx >= segment.startPointIdx;
                 startPos = junctionNode.transform.position;
                 startPointIdx = nextPathJunctionIdx;
-                node = terminate ? null : node.Next;
+                node = node.Next;
 
                 segments.Add(segment);
                 AddSplinePoints(points, segment, aircraft);
             }
             
+            useTriggers = true;
             spline.SetPoints(points.ToArray());
             spline.RebuildImmediate();
+            SetPercent(0);
             RemoveTriggers();
             AddTriggers(segments, aircraft);
             
@@ -241,9 +236,9 @@ namespace Traffic
                 thisSpline.Evaluate(startPointIdx, ref joint);
                 forward = isForward ? joint.forward : -joint.forward;
 
-                if (Vector3.Distance(startPos, firstPos) > aircraft.turnRadius)
+                if (Vector3.Distance(startPos, firstPos) > aircraft.GetTurnRadius())
                 {
-                    AddSplinePoint(points, startPos + aircraft.turnRadius * forward);
+                    AddSplinePoint(points, startPos + aircraft.GetTurnRadius() * forward);
                 }
 
                 var from = isForward ? startPointIdx + 1 : startPointIdx - 1;
@@ -262,12 +257,12 @@ namespace Traffic
             var nextPath = segment.nextPath;
             var margin = nextPath != null ? nextPath.GetSafetyMargin(aircraft) : 0f;
             
-            if (margin > aircraft.turnRadius)
+            if (margin > aircraft.GetTurnRadius())
             {
                 AddSplinePoint(points, joint.position - margin * forward);
             }
             
-            AddSplinePoint(points, joint.position - aircraft.turnRadius * forward);
+            AddSplinePoint(points, joint.position - aircraft.GetTurnRadius() * forward);
             AddSplinePoint(points, joint.position);
         }
         

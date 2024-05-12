@@ -42,32 +42,30 @@ namespace Traffic
             );
         }
 
-        public void Amend(string instruction)
+        public void Amend(string instruction, [CanBeNull] Path presentPath)
         {
             TrimLeadingZeros(ref instruction);
-            var newDepartRunway = GetDepartRunway(ref instruction);
-            var newHoldShort = GetHoldShort(ref instruction);
-            var newCrossRunway = GetCrossRunways(ref instruction);
-            var taxiInstruction = instruction.Trim();
-            var newTaxiways = GetTaxiways(taxiInstruction);
-
-            if (newDepartRunway != null)
-                departRunway = newDepartRunway;
-
-            if (newHoldShort != null)
-                holdShort = newHoldShort;
-
-            foreach (var runway in newCrossRunway)
-            {
-                crossRunways.Enqueue(runway);
-
-                if (runway.Equals(holdShort))
-                    holdShort = null;
-            }
+            departRunway = GetDepartRunway(ref instruction) ?? departRunway;
+            holdShort = GetHoldShort(ref instruction);
+            crossRunways = GetCrossRunways(ref instruction);
+            var newTaxiways = GetTaxiways(instruction.Trim());
 
             if (newTaxiways.Count > 0)
             {
                 taxiways = newTaxiways;
+            }
+            else if (presentPath != null)
+            {
+                var node = taxiways.First;
+                
+                while (node != null)
+                {
+                    if (node.Value.Equals(presentPath))
+                        break;
+
+                    node = node.Next;
+                    taxiways.RemoveFirst();
+                }
             }
 
             active = true;
@@ -78,6 +76,32 @@ namespace Traffic
                       + $"{(crossRunways.Count > 0 ? " cross " + string.Join(", ", crossRunways.Select(r => r.identifier)) : "")}"
                       + $"{(holdShort != null ? $" hold {holdShort.identifier}" : "")}"
             );
+        }
+
+        public bool CanCross(Path path)
+        {
+            if (path is Runway runway)
+            {
+                return crossRunways.TryPeek(out Runway first) && runway.Equals(first);
+            }
+            else if (path is Taxiway taxiway)
+            {
+                return !taxiway.Equals(holdShort);
+            }
+            
+            return false;
+        }
+
+        public void Cross(Path path)
+        {
+            if (path is Runway runway && crossRunways.TryPeek(out Runway first) && runway.Equals(first))
+            {
+                crossRunways.Dequeue();
+            }
+            else if (path is Taxiway taxiway && taxiway.Equals(holdShort))
+            {
+                holdShort = null;
+            }
         }
 
         public void Reset()
