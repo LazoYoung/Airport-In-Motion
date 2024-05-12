@@ -1,8 +1,6 @@
 ﻿using System;
-using Dreamteck.Splines;
 using Layout;
 using UnityEngine;
-using UnityEngine.Serialization;
 using static Dreamteck.Splines.SplineFollower.FollowMode;
 using Time = UnityEngine.Time;
 
@@ -29,7 +27,7 @@ namespace Traffic
         private bool move;
         
         [HideInInspector] [SerializeField]
-        private Pathfinder pathfinder;
+        private PathFollower pathFollower;
 
         [HideInInspector] [SerializeField]
         private TaxiInstruction taxiInstruction;
@@ -60,8 +58,10 @@ namespace Traffic
                 taxiInstruction.Amend(instruction, presentPath);
             }
 
-            pathfinder.CreateTaxiPath(this, taxiInstruction);
-            move = true;
+            if (pathFollower.CreateTaxiPath(this, taxiInstruction))
+            {
+                move = true;
+            }
         }
 
         private void OnEnterPath(Path path)
@@ -93,28 +93,28 @@ namespace Traffic
         {
             tag = "Aircraft";
             taxiInstruction = new TaxiInstruction();
-            pathfinder = gameObject.AddComponent<Pathfinder>();
-            pathfinder.hideFlags = HideFlags.HideAndDontSave;
-            pathfinder.follow = false;
-            pathfinder.EnterPath += OnEnterPath;
-            pathfinder.CrossPath += OnCrossPath;
-            pathfinder.onEndReached += OnEndReached;
+            pathFollower = gameObject.AddComponent<PathFollower>();
+            pathFollower.hideFlags = HideFlags.HideAndDontSave;
+            pathFollower.follow = false;
+            pathFollower.EnterPath += OnEnterPath;
+            pathFollower.CrossPath += OnCrossPath;
+            pathFollower.onEndReached += OnEndReached;
         }
 
         private void OnDisable()
         {
-            pathfinder.EnterPath -= OnEnterPath;
-            pathfinder.CrossPath -= OnCrossPath;
-            pathfinder.onEndReached -= OnEndReached;
-            Destroy(pathfinder);
+            pathFollower.EnterPath -= OnEnterPath;
+            pathFollower.CrossPath -= OnCrossPath;
+            pathFollower.onEndReached -= OnEndReached;
+            Destroy(pathFollower);
         }
 
         private void FixedUpdate()
         {
             UpdateSpeed();
-            pathfinder.follow = move;
-            pathfinder.followSpeed = _speed;
-            pathfinder.followMode = Uniform;
+            pathFollower.follow = move;
+            pathFollower.followSpeed = _speed;
+            pathFollower.followMode = Uniform;
         }
 
         private void UpdateSpeed()
